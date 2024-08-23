@@ -10,10 +10,13 @@
 **Resources**
 
 - [Rust book](https://doc.rust-lang.org/book/)
+- [polkadot-sdk](https://github.com/paritytech/polkadot-sdk/tree/master)
 - [Polkadot-sdk docs](https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/index.html)
 - Blockchain diagram from excalidraw
 
 ## Requirements
+
+Your main function should be able to initialize state and produce blocks.
 
 ### Blockchain
 
@@ -34,6 +37,7 @@
   - Tracking extrinsics
   - Uncommitted changes to state if anything fails in the STF
   - Agnostic over storage layer
+  - Consensus protocol (i.e. validation) should build on top of the highest block
 
 ### Rust
 
