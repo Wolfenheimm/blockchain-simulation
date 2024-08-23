@@ -29,6 +29,8 @@ Your main function should be able to initialize state and produce blocks.
   - Hashes
   - Block and transaction weight (i.e. determining when a block is full based on the amount of total accumulated transactions weight is in the block)
 - Your blockchain should be configuratble at startup (e.g. Substrate runtime configuration (e.g. pallet `Config` trait))
+- Block import and block execution
+- Consensus protocol (i.e. block production and finalization)
 - Requirements for STF
   - Should inherit the configuration (e.g. should have a configurable parameter dictating the maximum weight of a block) 
   - Defensive programming validations (e.g. parent block exists)
@@ -37,7 +39,6 @@ Your main function should be able to initialize state and produce blocks.
   - Tracking extrinsics
   - Uncommitted changes to state if anything fails in the STF
   - Agnostic over storage layer
-  - Consensus protocol (i.e. validation) should build on top of the highest block
 
 ### Rust
 
