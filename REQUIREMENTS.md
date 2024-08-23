@@ -22,7 +22,7 @@ Your main function should be able to initialize state and produce blocks.
 
 - Blockchain protocol should include the following components (non-exhaustive):
   - State transition function (STF)
-  - Block and Header
+  - [Block](https://github.com/paritytech/polkadot-sdk/blob/master/substrate/frame/system/src/lib.rs#L925) and Header 
   - Transactions
   - Agnostic State (i.e. the state should not know what is inside it)
   - Encoding and decoding state
