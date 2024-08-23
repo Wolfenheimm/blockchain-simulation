@@ -25,7 +25,7 @@ Your main function should be able to initialize state and produce blocks.
   - [Block](https://github.com/paritytech/polkadot-sdk/blob/master/substrate/frame/system/src/lib.rs#L925) and Header 
   - Transactions
   - Agnostic State (i.e. the state should not know what is inside it)
-  - Encoding and decoding state
+  - [Encoding and decoding](https://docs.rs/bincode/latest/bincode/) state
   - Hashes
   - Block and transaction weight (i.e. determining when a block is full based on the amount of total accumulated transactions weight is in the block)
 - Your blockchain should be configuratble at startup (e.g. Substrate runtime configuration (e.g. pallet `Config` trait))
