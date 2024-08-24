@@ -1,7 +1,9 @@
+use crate::types::Hash;
+
 #[derive(Debug, Clone, Copy)]
 struct Account {
-    hash: [u8; 32],
+    hash: Hash,
     balance: u128,
 }
 
-pub type AccountId = u64;
+pub type AccountId = Hash;

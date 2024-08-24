@@ -13,3 +13,5 @@ pub struct Call {
     pub to: AccountId,
     pub amount: u128,
 }
+
+// enum for the extrinsic defining the type -> Transfer/Burn
