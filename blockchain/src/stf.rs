@@ -1,6 +1,5 @@
 use crate::extrinsics::ExtrinsicTrait;
 use crate::Config;
-use crate::{block::Block, types::Hash};
 use serde::{Deserialize, Serialize}; // Placeholder, perhaps bincode is better?
 use std::error::Error;
 

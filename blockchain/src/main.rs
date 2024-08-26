@@ -9,8 +9,6 @@ use block::BlockTrait;
 use extrinsics::ExtrinsicTrait;
 use types::{BlockHeightTrait, HashTrait};
 
-use crate::types::Hash;
-
 pub trait Config {
     const MAX_BLOCK_WEIGHT: u64;
     type Block: BlockTrait;
