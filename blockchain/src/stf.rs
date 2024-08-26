@@ -1,4 +1,4 @@
-use crate::extrinsics::Extrinsic;
+use crate::extrinsics::ExtrinsicTrait;
 use crate::Config;
 use crate::{block::Block, types::Hash};
 use serde::{Deserialize, Serialize}; // Placeholder, perhaps bincode is better?
@@ -46,7 +46,7 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
 fn calculate_weight<T>(block: &T::Block) -> u64
 where
     T: Config,
-    <T as Config>::Extrinsic: Extrinsic,
+    <T as Config>::Extrinsic: ExtrinsicTrait,
 {
     T::extrinsics_from_block(block)
         .iter()

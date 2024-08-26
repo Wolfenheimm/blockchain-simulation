@@ -5,16 +5,18 @@ pub mod extrinsics;
 pub mod state;
 pub mod stf;
 pub mod types;
-use extrinsics::Extrinsic;
+use block::BlockTrait;
+use extrinsics::ExtrinsicTrait;
+use types::{BlockHeightTrait, HashTrait};
 
 use crate::types::Hash;
 
 pub trait Config {
     const MAX_BLOCK_WEIGHT: u64;
-    type Block;
-    type Hash;
-    type Number;
-    type Extrinsic: Extrinsic;
+    type Block: BlockTrait;
+    type Hash: HashTrait;
+    type Height: BlockHeightTrait;
+    type Extrinsic: ExtrinsicTrait;
 
     fn parent_hash(block: &Self::Block) -> Self::Hash;
     fn fetch_block_by_hash(hash: &Self::Hash) -> Option<Self::Block>;

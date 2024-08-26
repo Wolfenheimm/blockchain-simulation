@@ -5,7 +5,7 @@ trait Nodes<T: Config> {
     /// Return the block with the given number.
     ///
     /// Should be used when a node encounters a new canonical fork and needs to reorg to the new chain.
-    fn request_block(&self, block_number: T::Number) -> T::Block;
+    fn request_block(&self, block_number: T::Height) -> T::Block;
 }
 
 trait Consensus<T: Config> {
