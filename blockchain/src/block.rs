@@ -1,21 +1,21 @@
 use crate::{
-    extrinsics::ExtrinsicTrait,
+    extrinsics::{Extrinsic, ExtrinsicTrait},
     types::{BlockHeight, Hash},
 };
 
 #[derive(Debug, Clone)]
-pub struct Block<T> {
+pub struct Block {
     pub block_height: BlockHeight,
     pub parent_hash: Hash,
     pub state_root: Hash,
-    pub extrinsics: Vec<T>, // Generic E allows for different transaction types...
+    pub extrinsics: Vec<Extrinsic>, // Generic E allows for different transaction types...
 }
 
-impl<E: ExtrinsicTrait> Block<E> {
-    pub fn extrinsics(&self) -> &Vec<E> {
-        &self.extrinsics
-    }
-}
+// impl<E: ExtrinsicTrait> Block<E> {
+//     pub fn extrinsics(&self) -> &Vec<E> {
+//         &self.extrinsics
+//     }
+// }
 
 pub trait BlockTrait {
     type Extrinsic: ExtrinsicTrait; // Associated type for extrinsics
@@ -27,8 +27,8 @@ pub trait BlockTrait {
 }
 
 // Implement the BlockTrait for the Block struct
-impl<T: ExtrinsicTrait> BlockTrait for Block<T> {
-    type Extrinsic = T;
+impl BlockTrait for Block {
+    type Extrinsic = Extrinsic;
 
     fn block_height(&self) -> BlockHeight {
         self.block_height

@@ -11,14 +11,12 @@ use types::{BlockHeightTrait, HashTrait};
 
 pub trait Config {
     const MAX_BLOCK_WEIGHT: u64;
-    type Block: BlockTrait;
     type Hash: HashTrait;
     type Height: BlockHeightTrait;
     type Extrinsic: ExtrinsicTrait;
 
-    fn parent_hash(block: &Self::Block) -> Self::Hash;
-    fn fetch_block_by_hash(hash: &Self::Hash) -> Option<Self::Block>;
-    fn extrinsics_from_block(block: &Self::Block) -> &Vec<Self::Extrinsic>;
+    // fn fetch_block_by_hash(hash: &Self::Hash) -> Option<Self::Block>;
+    // fn extrinsics_from_block(block: &Self::Block) -> &Vec<Self::Extrinsic>;
 }
 
 fn main() {}
