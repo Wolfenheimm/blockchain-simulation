@@ -1,17 +1,15 @@
-use crate::account::AccountId;
-
-pub type Extrinsics = Vec<Extrinsic>;
-
-#[derive(Debug, Clone)]
-pub struct Extrinsic {
-    pub call: Call,
+pub trait Extrinsic {
+    fn weight(&self) -> u64;
 }
 
-#[derive(Debug, Clone)]
-pub struct Call {
-    pub from: AccountId,
-    pub to: AccountId,
-    pub amount: u128,
+pub struct Transaction {
+    pub value: u64,
 }
 
-// enum for the extrinsic defining the type -> Transfer/Burn
+impl Extrinsic for Transaction {
+    fn weight(&self) -> u64 {
+        self.value
+    }
+}
+
+//enum for the extrinsic defining the type -> Transfer/Burn
