@@ -1,5 +1,7 @@
+use serde::Serialize;
 use std::collections::HashMap;
 
-struct State {
+#[derive(Serialize)]
+pub struct State {
     data: HashMap<Vec<u8>, Vec<u8>>,
 }

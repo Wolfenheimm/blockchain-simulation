@@ -1,12 +1,22 @@
 use crate::block::{Block, BlockTrait};
 use crate::extrinsics::ExtrinsicTrait;
+use crate::plugin::{Plugin, StoragePlugin};
+use crate::state::State;
+use crate::types::BlockHeight;
 use crate::Config;
-use serde::{Deserialize, Serialize}; // Placeholder, perhaps bincode is better?
+use serde::Serialize;
 use std::error::Error;
 use std::marker::PhantomData;
 
+#[derive(Serialize)]
+enum StoragePrefix {
+    Account,
+    Block,
+    Extrinsic,
+}
+
 pub trait Stf<T: Config> {
-    fn validate_block(&self, block: Block) -> Result<(), Box<dyn Error>>;
+    fn validate_block(&self, block: Block, state: State) -> Result<(), Box<dyn Error>>;
     fn execute_block(&self, block: Block);
 }
 
@@ -23,10 +33,13 @@ impl<T: Config> SimpleStf<T> {
 }
 
 impl<T: Config> Stf<T> for SimpleStf<T> {
-    fn validate_block(&self, block: Block) -> Result<(), Box<dyn Error>> {
-        let parent_hash = block.parent_hash; // Use the config to call parent_hash
+    fn validate_block(&self, block: Block, state: State) -> Result<(), Box<dyn Error>> {
+        // Ensure the block is not already in the state
+        let block_key = Plugin::encode_key(StoragePrefix::Block, block.block_height);
 
         // TODO: Check if the parent block exists from State
+        let parent_block_key =
+            StoragePlugin::encode_key(StoragePrefix::Block, block.block_height - 1);
 
         // Ensure the block does not exceed its maximum weight
         let block_weight = calculate_weight(block);
@@ -46,4 +59,9 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
 
 fn calculate_weight(block: impl BlockTrait) -> u64 {
     block.extrinsics().iter().map(|e| e.weight()).sum()
+}
+
+fn get_block(block_height: BlockHeight) -> Block {
+    // Placeholder for getting the block from the state
+    unimplemented!()
 }
