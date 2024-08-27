@@ -26,7 +26,7 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
     fn validate_block(&self, block: Block) -> Result<(), Box<dyn Error>> {
         let parent_hash = block.parent_hash; // Use the config to call parent_hash
 
-        // TODO: Check if the parent block exists
+        // TODO: Check if the parent block exists from State
 
         // Ensure the block does not exceed its maximum weight
         let block_weight = calculate_weight(block);

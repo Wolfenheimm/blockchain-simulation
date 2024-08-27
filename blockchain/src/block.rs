@@ -11,12 +11,6 @@ pub struct Block {
     pub extrinsics: Vec<Extrinsic>, // Generic E allows for different transaction types...
 }
 
-// impl<E: ExtrinsicTrait> Block<E> {
-//     pub fn extrinsics(&self) -> &Vec<E> {
-//         &self.extrinsics
-//     }
-// }
-
 pub trait BlockTrait {
     type Extrinsic: ExtrinsicTrait; // Associated type for extrinsics
 
