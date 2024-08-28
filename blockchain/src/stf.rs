@@ -1,8 +1,6 @@
 use crate::block::{Block, BlockTrait};
-use crate::extrinsics::Extrinsics;
-use crate::plugin::{KeyEncoder, Plugin, StoragePlugin};
-use crate::state::State;
-use crate::types::{BlockHeight, TransactionType};
+use crate::plugin::{Plugin, StoragePlugin};
+use crate::types::TransactionType;
 use crate::Config;
 use serde::Serialize;
 use std::error::Error;
@@ -16,8 +14,8 @@ enum StoragePrefix {
 }
 
 pub trait Stf<T: Config> {
-    fn validate_block(&self, block: Block, state: State) -> Result<(), Box<dyn Error>>;
-    fn execute_block(&self, block: Block);
+    fn validate_block(&self, block: Block, plugin: Plugin) -> Result<(), Box<dyn Error>>;
+    fn execute_block(&self, block: Block, plugin: Plugin);
 }
 
 pub struct SimpleStf<T: Config> {
@@ -33,32 +31,36 @@ impl<T: Config> SimpleStf<T> {
 }
 
 impl<T: Config> Stf<T> for SimpleStf<T> {
-    fn validate_block(&self, block: Block, state: State) -> Result<(), Box<dyn Error>> {
+    fn validate_block(&self, block: Block, plugin: Plugin) -> Result<(), Box<dyn Error>> {
         // Ensure the block is not already in the state
-        let block_key = Plugin::encode_key(StoragePrefix::Block, block.block_height);
-        state.get(block_key).ok_or("Block already exists.")?;
+        let block_exists: Option<()> = plugin.get(StoragePrefix::Block, block.block_height);
+        // If exists... big no-no
+        if block_exists.is_some() {
+            return Err("Block already exists in the state.".into());
+        }
 
         // Check if the parent block exists from State
-        let parent_block_key = Plugin::encode_key(StoragePrefix::Block, block.block_height - 1);
-        state
-            .get(parent_block_key)
-            .ok_or("Parent block does not exist.")?;
-        // This could potentially be a trigger event which would check consensus and fetch the accepted chain
+        let parent_block_key: Option<()> = plugin.get(StoragePrefix::Block, block.block_height - 1);
+        // If parent block does not exist... big no-no
+        if parent_block_key.is_none() {
+            return Err("Parent block does not exist in the state.".into());
+        }
+
+        // TODO: This could potentially be a trigger event which would check consensus and fetch the accepted chain
         // Potential fork occurred...
 
         // Ensure the block does not exceed its maximum weight
-        let block_weight = calculate_weight(block);
-
-        if block_weight > T::MAX_BLOCK_WEIGHT {
+        if calculate_weight(block) > T::MAX_BLOCK_WEIGHT {
             return Err("Block exceeds maximum weight.".into());
         }
 
         Ok(())
     }
 
-    fn execute_block(&self, block: Block) {
+    fn execute_block(&self, block: Block, plugin: Plugin) {
         // TODO: Apply all extrinsic transactions to the state
         // Think about perhaps applying this to a layer of the state before pushing it.
+        !unimplemented!()
     }
 }
 

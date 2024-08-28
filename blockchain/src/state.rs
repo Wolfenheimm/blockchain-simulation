@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 #[derive(Serialize)]
 pub struct State {
-    data: HashMap<Vec<u8>, Vec<u8>>,
+    data: HashMap<Vec<u8>, Vec<u8>>, // Encoded key-value pairs
 }
 
 impl State {
