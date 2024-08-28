@@ -79,6 +79,9 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
                     // Get the receiver's account
                     let to_account: Account = plugin.get(StoragePrefix::Account, to);
 
+                    // TODO: Check if the accounts exist, if they don't, skip the transaction
+                    // TODO: Check if the sender has enough balance, if they don't, skip the transaction
+
                     // Update the sender's account
                     let updated_from_account = Account {
                         account_id: from_account.account_id,
@@ -104,7 +107,7 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
                     );
                 }
                 TransactionType::None => {
-                    // Nada
+                    // Bupkis
                 }
             }
         }
