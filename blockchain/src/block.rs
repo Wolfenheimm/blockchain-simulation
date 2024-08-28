@@ -1,42 +1,25 @@
+use serde::Serialize;
+
 use crate::{
-    extrinsics::{Extrinsic, ExtrinsicTrait},
+    extrinsics::SignedTransaction,
     types::{BlockHeight, Hash},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Block {
     pub block_height: BlockHeight,
     pub parent_hash: Hash,
     pub state_root: Hash,
-    pub extrinsics: Vec<Extrinsic>, // Generic E allows for different transaction types...
+    pub extrinsics: Vec<SignedTransaction>, // Generic E allows for different transaction types...
 }
 
 pub trait BlockTrait {
-    type Extrinsic: ExtrinsicTrait; // Associated type for extrinsics
-
-    fn block_height(&self) -> BlockHeight;
-    fn parent_hash(&self) -> Hash;
-    fn state_root(&self) -> Hash;
-    fn extrinsics(&self) -> &Vec<Self::Extrinsic>;
+    fn extrinsics(&self) -> &Vec<SignedTransaction>;
 }
 
 // Implement the BlockTrait for the Block struct
 impl BlockTrait for Block {
-    type Extrinsic = Extrinsic;
-
-    fn block_height(&self) -> BlockHeight {
-        self.block_height
-    }
-
-    fn parent_hash(&self) -> Hash {
-        self.parent_hash
-    }
-
-    fn state_root(&self) -> Hash {
-        self.state_root
-    }
-
-    fn extrinsics(&self) -> &Vec<Self::Extrinsic> {
+    fn extrinsics(&self) -> &Vec<SignedTransaction> {
         &self.extrinsics
     }
 }

@@ -1,4 +1,5 @@
-pub struct TransactionType {}
+use serde::Serialize;
+
 pub type Hash = [u8; 32];
 pub type BlockHeight = u64;
 
@@ -35,4 +36,15 @@ impl BlockHeightTrait for BlockHeight {
     fn from_value(value: u64) -> Self {
         value
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub enum TransactionType {
+    Transfer {
+        weight: u64,
+        from: [u8; 32],
+        to: [u8; 32],
+        amount: u128,
+    },
+    None,
 }
