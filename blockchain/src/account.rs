@@ -1,9 +1,9 @@
+use serde::{Deserialize, Serialize};
+
 use crate::types::Hash;
 
-#[derive(Debug, Clone, Copy)]
-struct Account {
-    hash: Hash,
-    balance: u128,
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct Account {
+    pub account_id: Hash,
+    pub balance: u128,
 }
-
-pub type AccountId = Hash;

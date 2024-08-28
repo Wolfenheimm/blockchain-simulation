@@ -1,3 +1,4 @@
+use crate::account::Account;
 use crate::block::{Block, BlockTrait};
 use crate::plugin::{Plugin, StoragePlugin};
 use crate::types::TransactionType;
@@ -16,6 +17,8 @@ enum StoragePrefix {
 pub trait Stf<T: Config> {
     fn validate_block(&self, block: Block, plugin: Plugin) -> Result<(), Box<dyn Error>>;
     fn execute_block(&self, block: Block, plugin: Plugin);
+    fn validate_account(&self, account: Account, plugin: Plugin) -> Result<(), Box<dyn Error>>;
+    fn add_account(&self, account: Account, plugin: Plugin);
 }
 
 pub struct SimpleStf<T: Config> {
@@ -43,7 +46,7 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
         let parent_block_key: Option<()> = plugin.get(StoragePrefix::Block, block.block_height - 1);
         // If parent block does not exist... big no-no
         if parent_block_key.is_none() {
-            return Err("Parent block does not exist in the state.".into());
+            return Err("Parent block is invalid for this block.".into());
         }
         // ^^^ This is a potential fork scenario
         // TODO: This could potentially be a trigger event which would check consensus and fetch the accepted chain
@@ -57,17 +60,73 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
     }
 
     fn execute_block(&self, block: Block, mut plugin: Plugin) {
-        // Apply the block to the state
+        // Add the block to the state
         plugin.encode(StoragePrefix::Block, &block.block_height, &block);
 
-        // TODO: Apply all extrinsic transactions to the state
-        // Think about perhaps applying this to a layer (or a new instance) of the state before squashing it?
+        // Add all extrinsics to the state
+        // Apply all extrinsic transactions to the state
         for transaction in block.extrinsics() {
             // Apply the transaction to the state
             plugin.encode(StoragePrefix::Extrinsic, &block.block_height, transaction);
 
-            // Apply the transaction to the Account, then update state
+            // Apply the transaction, then update state
+            match transaction.transaction_type {
+                TransactionType::Transfer {
+                    amount, from, to, ..
+                } => {
+                    // Get the sender's account
+                    let from_account: Account = plugin.get(StoragePrefix::Account, from);
+                    // Get the receiver's account
+                    let to_account: Account = plugin.get(StoragePrefix::Account, to);
+
+                    // Update the sender's account
+                    let updated_from_account = Account {
+                        account_id: from_account.account_id,
+                        balance: from_account.balance - amount,
+                    };
+                    // Push
+                    plugin.encode(
+                        StoragePrefix::Account,
+                        &from_account.account_id,
+                        &updated_from_account,
+                    );
+
+                    // Update the receiver's account
+                    let updated_to_account = Account {
+                        account_id: to_account.account_id,
+                        balance: to_account.balance + amount,
+                    };
+                    // Push
+                    plugin.encode(
+                        StoragePrefix::Account,
+                        &to_account.account_id,
+                        &updated_to_account,
+                    );
+                }
+                TransactionType::None => {
+                    // Nada
+                }
+            }
         }
+    }
+
+    fn validate_account(&self, account: Account, plugin: Plugin) -> Result<(), Box<dyn Error>> {
+        // Check if the account is not already in the state
+        let account_exists: Option<()> = plugin.get(StoragePrefix::Account, account.account_id);
+        // If the account exists... big no-no
+        if account_exists.is_some() {
+            return Err("Account already exists in the state.".into());
+        }
+
+        Ok(())
+    }
+
+    fn add_account(&self, account: Account, mut plugin: Plugin) {
+        plugin.encode(
+            StoragePrefix::Account,
+            &account.account_id,
+            &account.balance,
+        );
     }
 }
 
