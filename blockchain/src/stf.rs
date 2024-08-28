@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::marker::PhantomData;
 
+// TODO: Add this to types, rename to StorageType
 #[derive(Serialize, Deserialize)]
 enum StoragePrefix {
     Account,
@@ -63,12 +64,7 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
         // Add the block to the state
         plugin.encode(StoragePrefix::Block, &block.block_height, &block);
 
-        // Add all extrinsics to the state
-        // Apply all extrinsic transactions to the state
         for transaction in block.extrinsics() {
-            // Apply the transaction to the state
-            plugin.encode(StoragePrefix::Extrinsic, &block.block_height, transaction);
-
             // Apply the transaction, then update state
             match transaction.transaction_type {
                 TransactionType::Transfer {
@@ -110,6 +106,10 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
                     // Bupkis
                 }
             }
+
+            // TODO: If something happened, think about a rollback...
+            // Add the transaction to the state
+            plugin.encode(StoragePrefix::Extrinsic, &block.block_height, transaction);
         }
     }
 
