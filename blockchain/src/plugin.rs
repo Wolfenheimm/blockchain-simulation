@@ -1,10 +1,8 @@
-use serde::{de::DeserializeOwned, Serialize};
-use std::collections::HashMap;
-
 use crate::state::State;
+use serde::{de::DeserializeOwned, Serialize};
 
 pub trait StoragePlugin<P, K, V> {
-    fn encode(prefix: P, key: K, value: V) -> (Vec<u8>, Vec<u8>);
+    fn encode(&mut self, prefix: P, key: K, value: &V);
     fn get(&self, prefix: P, key: K) -> V;
 }
 
@@ -19,16 +17,16 @@ where
     K: Serialize,
     V: Serialize + DeserializeOwned,
 {
-    fn encode(prefix: P, key: K, value: V) -> (Vec<u8>, Vec<u8>) {
+    fn encode(&mut self, prefix: P, key: K, value: &V) {
         let encoded_prefix = bincode::serialize(&prefix).unwrap();
         let encoded_key = bincode::serialize(&key).unwrap();
-        let new_key: Vec<_> = encoded_prefix
+        let full_key: Vec<_> = encoded_prefix
             .into_iter()
             .chain(encoded_key.into_iter())
             .collect();
-        let encoded_value = bincode::serialize(&value).unwrap();
+        let encoded_value = bincode::serialize(value).unwrap();
 
-        (new_key, encoded_value)
+        self.state.insert(full_key, encoded_value);
     }
 
     fn get(&self, prefix: P, key: K) -> V {
@@ -44,3 +42,8 @@ where
         decoded
     }
 }
+
+// Function to generate the full_key
+// fn generate_key() {
+//     !unimplemented!()
+// }

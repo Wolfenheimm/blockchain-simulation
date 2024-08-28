@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 pub type Hash = [u8; 32];
 pub type BlockHeight = u64;
@@ -38,7 +38,7 @@ impl BlockHeightTrait for BlockHeight {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TransactionType {
     Transfer {
         weight: u64,

@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::types::TransactionType;
 
@@ -24,7 +24,7 @@ impl Extrinsics for Vec<SignedTransaction> {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct SignedTransaction {
     pub transaction_type: TransactionType,
 }

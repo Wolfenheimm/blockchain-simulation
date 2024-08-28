@@ -1,11 +1,11 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     extrinsics::SignedTransaction,
     types::{BlockHeight, Hash},
 };
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Block {
     pub block_height: BlockHeight,
     pub parent_hash: Hash,

@@ -2,15 +2,15 @@ use crate::block::{Block, BlockTrait};
 use crate::plugin::{Plugin, StoragePlugin};
 use crate::types::TransactionType;
 use crate::Config;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::marker::PhantomData;
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 enum StoragePrefix {
     Account,
     Block,
-    Extrinsics,
+    Extrinsic,
 }
 
 pub trait Stf<T: Config> {
@@ -45,9 +45,8 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
         if parent_block_key.is_none() {
             return Err("Parent block does not exist in the state.".into());
         }
-
+        // ^^^ This is a potential fork scenario
         // TODO: This could potentially be a trigger event which would check consensus and fetch the accepted chain
-        // Potential fork occurred...
 
         // Ensure the block does not exceed its maximum weight
         if calculate_weight(block) > T::MAX_BLOCK_WEIGHT {
@@ -57,10 +56,18 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
         Ok(())
     }
 
-    fn execute_block(&self, block: Block, plugin: Plugin) {
+    fn execute_block(&self, block: Block, mut plugin: Plugin) {
+        // Apply the block to the state
+        plugin.encode(StoragePrefix::Block, &block.block_height, &block);
+
         // TODO: Apply all extrinsic transactions to the state
-        // Think about perhaps applying this to a layer of the state before pushing it.
-        !unimplemented!()
+        // Think about perhaps applying this to a layer (or a new instance) of the state before squashing it?
+        for transaction in block.extrinsics() {
+            // Apply the transaction to the state
+            plugin.encode(StoragePrefix::Extrinsic, &block.block_height, transaction);
+
+            // Apply the transaction to the Account, then update state
+        }
     }
 }
 
