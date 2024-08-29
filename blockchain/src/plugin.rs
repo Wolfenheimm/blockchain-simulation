@@ -1,6 +1,4 @@
-use std::marker::PhantomData;
-
-use crate::{state::State, Config};
+use crate::state::State;
 use serde::{de::DeserializeOwned, Serialize};
 
 pub trait StoragePlugin<P, K, V> {

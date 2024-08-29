@@ -46,6 +46,14 @@ pub enum TransactionType {
         to: [u8; 32],
         amount: u128,
     },
-    Mint,
-    Burn,
+    Mint {
+        weight: u64,
+        to: [u8; 32],
+        amount: u128,
+    },
+    Burn {
+        weight: u64,
+        from: [u8; 32],
+        amount: u128,
+    },
 }

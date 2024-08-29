@@ -110,11 +110,52 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
                         &updated_to_account,
                     );
                 }
-                TransactionType::Mint => {
-                    // Bupkis
+                TransactionType::Mint { amount, to, .. } => {
+                    // Get the receiver's account
+                    let to_account: Option<Account> = plugin.get(StoragePrefix::Account, to);
+
+                    // Check if the account exists, if it doesn't, skip the transaction
+                    if to_account.is_none() {
+                        continue;
+                    }
+
+                    // Update the receiver's account
+                    let updated_to_account = Account {
+                        account_id: to_account.unwrap().account_id,
+                        balance: to_account.unwrap().balance + amount,
+                    };
+                    // Push
+                    plugin.set(
+                        StoragePrefix::Account,
+                        &to_account.unwrap().account_id,
+                        &updated_to_account,
+                    );
                 }
-                TransactionType::Burn => {
-                    // Bupkis
+                TransactionType::Burn { amount, from, .. } => {
+                    // Get the sender's account
+                    let from_account: Option<Account> = plugin.get(StoragePrefix::Account, from);
+
+                    // Check if the account exists, if it doesn't, skip the transaction
+                    if from_account.is_none() {
+                        continue;
+                    }
+
+                    // Check if the sender has enough balance, if they don't, skip the transaction
+                    if from_account.unwrap().balance < amount {
+                        continue;
+                    }
+
+                    // Update the sender's account
+                    let updated_from_account = Account {
+                        account_id: from_account.unwrap().account_id,
+                        balance: from_account.unwrap().balance - amount,
+                    };
+                    // Push
+                    plugin.set(
+                        StoragePrefix::Account,
+                        &from_account.unwrap().account_id,
+                        &updated_from_account,
+                    );
                 }
             }
 
@@ -155,8 +196,8 @@ fn calculate_weight(block: impl BlockTrait) -> u64 {
         .iter()
         .map(|e| match &e.transaction_type {
             TransactionType::Transfer { weight, .. } => *weight,
-            TransactionType::Mint => 0,
-            TransactionType::Burn => 0,
+            TransactionType::Mint { weight, .. } => *weight,
+            TransactionType::Burn { weight, .. } => *weight,
         })
         .sum()
 }
