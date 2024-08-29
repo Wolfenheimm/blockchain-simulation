@@ -5,13 +5,18 @@ use crate::{
     types::{BlockHeight, Hash},
 };
 
-//TODO: Add a header to the block => add a block hash, timestamp, nonce, difficulty?
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Block {
+    pub header: Header,
+    pub extrinsics: Vec<SignedTransaction>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Header {
     pub block_height: BlockHeight,
     pub parent_hash: Hash,
     pub state_root: Hash,
-    pub extrinsics: Vec<SignedTransaction>,
+    pub extrinsics_root: Hash,
 }
 
 pub trait BlockTrait {

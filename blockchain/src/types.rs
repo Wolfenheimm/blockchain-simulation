@@ -46,5 +46,6 @@ pub enum TransactionType {
         to: [u8; 32],
         amount: u128,
     },
-    None,
+    Mint,
+    Burn,
 }

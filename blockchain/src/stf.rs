@@ -37,14 +37,15 @@ impl<T: Config> SimpleStf<T> {
 impl<T: Config> Stf<T> for SimpleStf<T> {
     fn validate_block(&self, block: Block, plugin: Plugin) -> Result<(), Box<dyn Error>> {
         // Ensure the block is not already in the state
-        let block_exists: Option<()> = plugin.get(StoragePrefix::Block, block.block_height);
+        let block_exists: Option<()> = plugin.get(StoragePrefix::Block, block.header.block_height);
         // If exists... big no-no
         if block_exists.is_some() {
             return Err("Block already exists in the state.".into());
         }
 
         // Check if the parent block exists from State
-        let parent_block_key: Option<()> = plugin.get(StoragePrefix::Block, block.block_height - 1);
+        let parent_block_key: Option<()> =
+            plugin.get(StoragePrefix::Block, block.header.block_height - 1);
         // If parent block does not exist... big no-no
         if parent_block_key.is_none() {
             return Err("Parent block is invalid for this block.".into());
@@ -62,7 +63,7 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
 
     fn execute_block(&self, block: Block, mut plugin: Plugin) {
         // Add the block to the state
-        plugin.encode(StoragePrefix::Block, &block.block_height, &block);
+        plugin.set(StoragePrefix::Block, &block.header.block_height, &block);
 
         for transaction in block.extrinsics() {
             // Apply the transaction, then update state
@@ -71,51 +72,66 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
                     amount, from, to, ..
                 } => {
                     // Get the sender's account
-                    let from_account: Account = plugin.get(StoragePrefix::Account, from);
+                    let from_account: Option<Account> = plugin.get(StoragePrefix::Account, from);
                     // Get the receiver's account
-                    let to_account: Account = plugin.get(StoragePrefix::Account, to);
+                    let to_account: Option<Account> = plugin.get(StoragePrefix::Account, to);
 
-                    // TODO: Check if the accounts exist, if they don't, skip the transaction
-                    // TODO: Check if the sender has enough balance, if they don't, skip the transaction
+                    // Check if the accounts exist, if they don't, skip the transaction
+                    if from_account.is_none() || to_account.is_none() {
+                        continue;
+                    }
+
+                    // Check if the sender has enough balance, if they don't, skip the transaction
+                    if from_account.unwrap().balance < amount {
+                        continue;
+                    }
 
                     // Update the sender's account
                     let updated_from_account = Account {
-                        account_id: from_account.account_id,
-                        balance: from_account.balance - amount,
+                        account_id: from_account.unwrap().account_id,
+                        balance: from_account.unwrap().balance - amount,
                     };
                     // Push
-                    plugin.encode(
+                    plugin.set(
                         StoragePrefix::Account,
-                        &from_account.account_id,
+                        &from_account.unwrap().account_id,
                         &updated_from_account,
                     );
 
                     // Update the receiver's account
                     let updated_to_account = Account {
-                        account_id: to_account.account_id,
-                        balance: to_account.balance + amount,
+                        account_id: to_account.unwrap().account_id,
+                        balance: to_account.unwrap().balance + amount,
                     };
                     // Push
-                    plugin.encode(
+                    plugin.set(
                         StoragePrefix::Account,
-                        &to_account.account_id,
+                        &to_account.unwrap().account_id,
                         &updated_to_account,
                     );
                 }
-                TransactionType::None => {
+                TransactionType::Mint => {
+                    // Bupkis
+                }
+                TransactionType::Burn => {
                     // Bupkis
                 }
             }
 
             // TODO: If something happened, think about a rollback...
             // Add the transaction to the state
-            plugin.encode(StoragePrefix::Extrinsic, &block.block_height, transaction);
+            plugin.set(
+                StoragePrefix::Extrinsic,
+                &block.header.block_height,
+                transaction,
+            );
         }
     }
 
     fn validate_account(&self, account: Account, plugin: Plugin) -> Result<(), Box<dyn Error>> {
         // Check if the account is not already in the state
-        let account_exists: Option<()> = plugin.get(StoragePrefix::Account, account.account_id);
+        let account_exists: Option<Account> =
+            plugin.get(StoragePrefix::Account, account.account_id);
         // If the account exists... big no-no
         if account_exists.is_some() {
             return Err("Account already exists in the state.".into());
@@ -125,7 +141,7 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
     }
 
     fn add_account(&self, account: Account, mut plugin: Plugin) {
-        plugin.encode(
+        plugin.set(
             StoragePrefix::Account,
             &account.account_id,
             &account.balance,
@@ -139,7 +155,8 @@ fn calculate_weight(block: impl BlockTrait) -> u64 {
         .iter()
         .map(|e| match &e.transaction_type {
             TransactionType::Transfer { weight, .. } => *weight,
-            TransactionType::None => 0,
+            TransactionType::Mint => 0,
+            TransactionType::Burn => 0,
         })
         .sum()
 }

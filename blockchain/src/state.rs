@@ -14,4 +14,10 @@ impl State {
     pub fn insert(&mut self, key: Vec<u8>, value: Vec<u8>) {
         self.data.insert(key, value);
     }
+
+    pub fn new() -> Self {
+        State {
+            data: HashMap::new(),
+        }
+    }
 }

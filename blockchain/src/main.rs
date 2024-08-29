@@ -13,4 +13,6 @@ pub trait Config {
     type Height: BlockHeightTrait;
 }
 
-fn main() {}
+fn main() {
+    // TODO: Simulate the blockchain
+}
