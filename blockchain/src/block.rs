@@ -6,13 +6,13 @@ use crate::{
     types::{BlockHeight, Hash},
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct Block {
     pub header: Header,
     pub extrinsics: Vec<SignedTransaction>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct Header {
     pub block_height: BlockHeight,
     pub parent_hash: Hash,

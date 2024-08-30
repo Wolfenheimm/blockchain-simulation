@@ -55,12 +55,12 @@ fn main() {
     let mut plugin = plugin::Plugin::new();
     let stf = stf::SimpleStf::new(MainNetConfig);
 
+    // Add the genesis block to the state
+    stf.execute_block(GENESIS_BLOCK.clone(), &mut plugin);
+
     // Add the accounts to the state
     stf.add_account(ALICE.clone(), &mut plugin);
     stf.add_account(DAVE.clone(), &mut plugin);
-
-    // Add the genesis block to the state
-    stf.execute_block(GENESIS_BLOCK.clone(), &mut plugin);
 
     for i in 1..=10 {
         let mut new_block = Block {
@@ -73,6 +73,8 @@ fn main() {
             extrinsics: vec![], // TODO: Extrinsics Pool
         };
 
+        // TODO: Add extrinsics validation -> don't use push, use a function
+        // Technically transfer 5k to dave
         for _i in 1..=5 {
             new_block
                 .extrinsics
@@ -85,6 +87,28 @@ fn main() {
                     },
                 ));
         }
+
+        // Technically mint 100 to alice
+        new_block
+            .extrinsics
+            .push(extrinsics::SignedTransaction::new(
+                types::TransactionType::Mint {
+                    weight: 1,
+                    to: ALICE.account_id,
+                    amount: 10,
+                },
+            ));
+
+        // Technically burn 10k from alice
+        new_block
+            .extrinsics
+            .push(extrinsics::SignedTransaction::new(
+                types::TransactionType::Burn {
+                    weight: 1,
+                    from: ALICE.account_id,
+                    amount: 1000,
+                },
+            ));
 
         // Validate the block
         match stf.validate_block(new_block.clone(), &mut plugin) {
@@ -105,12 +129,12 @@ fn main() {
     // --Print a known block
     let test_height: u64 = 5;
     let block_hash: Option<[u8; 32]> = plugin.get(StoragePrefix::Block, test_height);
-    let block: Option<Block> = plugin.get(StoragePrefix::Block, block_hash.unwrap());
+    let block: Option<Block> = plugin.get(StoragePrefix::Block, block_hash.unwrap_or_default());
     println!(
-        "Block {} ->\nBlock Hash: {:?}\nBlock Data: {:?}",
+        "Example: Block {} ->\nBlock Hash: {:?}\nBlock Data: {:?}",
         test_height,
-        block_hash.unwrap(),
-        block.unwrap()
+        block_hash.unwrap_or_default(),
+        block.unwrap_or_default()
     );
     let alice: Option<Account> = plugin.get(StoragePrefix::Account, ALICE.account_id);
     let dave: Option<Account> = plugin.get(StoragePrefix::Account, DAVE.account_id);

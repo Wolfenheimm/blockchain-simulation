@@ -40,17 +40,20 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
         if block_exists.is_some() {
             return Err("Block already exists in the state.".into());
         }
-        // TODO: perhaps extra validation on block hash found in header
 
         // Check if the parent block exists from State
-        let parent_block_key: Option<()> =
+        let parent_block_key: Option<[u8; 32]> =
             plugin.get(StoragePrefix::Block, block.header.block_height - 1);
+
         // If parent block does not exist... big no-no
         if parent_block_key.is_none() {
             return Err("Parent block is invalid for this block.".into());
         }
-        // TODO: Add a check for the parent hash
 
+        // Check if the parent hash matches the parent block hash
+        if block.header.parent_hash != parent_block_key.unwrap() {
+            return Err("Parent hash is invalid for this block.".into());
+        }
         // ^^^ This is a potential fork scenario
         // TODO: This could potentially be a trigger event which would check consensus and fetch the accepted chain
 
@@ -85,12 +88,19 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
                     // TODO: explore the use of ? for these Options -> TransactionError enum made for this
 
                     // Check if the accounts exist, if they don't, skip the transaction
-                    if from_account.is_none() || to_account.is_none() {
+                    if from_account.is_none() {
+                        eprintln!("Sender account does not exist.");
+                        continue;
+                    }
+
+                    if to_account.is_none() {
+                        eprintln!("Receiver account does not exist.");
                         continue;
                     }
 
                     // Check if the sender has enough balance, if they don't, skip the transaction
                     if from_account.unwrap().balance < amount {
+                        eprintln!("Sender does not have enough balance.");
                         continue;
                     }
 
@@ -124,6 +134,7 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
 
                     // Check if the account exists, if it doesn't, skip the transaction
                     if to_account.is_none() {
+                        eprintln!("Receiver account does not exist.");
                         continue;
                     }
 
@@ -145,12 +156,14 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
 
                     // Check if the account exists, if it doesn't, skip the transaction
                     if from_account.is_none() {
+                        eprintln!("Receiver account does not exist.");
                         continue;
                     }
 
                     // Check if the sender has enough balance, if they don't, set them to zero???
                     // TODO: Ask about this
                     if from_account.unwrap().balance < amount {
+                        eprintln!("Receiver does not have enough balance to burn that amount...");
                         continue;
                     }
 
@@ -199,12 +212,11 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
         let account_exists: Option<Account> =
             plugin.get(StoragePrefix::Account, account.account_id);
 
-        // If the account exists... don't add it.
+        // If the account already exists... don't add it.
         if account_exists.is_some() {
             return;
         }
 
-        println!("Adding account to the state: {:?}", account);
         plugin.set(StoragePrefix::Account, &account.account_id, &account);
     }
 }
