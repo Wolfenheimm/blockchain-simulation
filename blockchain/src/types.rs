@@ -56,6 +56,11 @@ pub enum TransactionType {
         from: [u8; 32],
         amount: u128,
     },
+    AccountCreation {
+        weight: u64,
+        account_id: [u8; 32],
+        balance: u128,
+    },
 }
 
 // TODO: Implement it, may have issues with current Option usage

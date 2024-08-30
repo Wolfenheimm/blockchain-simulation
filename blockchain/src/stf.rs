@@ -19,7 +19,6 @@ pub trait Stf<T: Config> {
     fn execute_block(&self, block: Block, plugin: &mut Plugin);
     fn validate_account(&self, account: Account, plugin: &mut Plugin)
         -> Result<(), Box<dyn Error>>;
-    fn add_account(&self, account: Account, plugin: &mut Plugin);
 }
 
 pub struct SimpleStf<T: Config> {
@@ -47,7 +46,7 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
 
         // If parent block does not exist... big no-no
         if parent_block_key.is_none() {
-            return Err("Parent block is invalid for this block.".into());
+            return Err("Parent block does not exist.".into());
         }
 
         // Check if the parent hash matches the parent block hash
@@ -179,6 +178,28 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
                         &updated_from_account,
                     );
                 }
+                TransactionType::AccountCreation {
+                    account_id,
+                    balance,
+                    ..
+                } => {
+                    // Create the account
+                    let account = Account {
+                        account_id,
+                        balance,
+                    };
+
+                    // Validate the account
+                    match self.validate_account(account, plugin) {
+                        Ok(_) => {
+                            // Add the account to the state
+                            plugin.set(StoragePrefix::Account, &account.account_id, &account);
+                        }
+                        Err(e) => {
+                            eprintln!("Error: {}", e);
+                        }
+                    }
+                }
             }
 
             // TODO: If something happened, think about a rollback...
@@ -206,19 +227,6 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
 
         Ok(())
     }
-
-    fn add_account(&self, account: Account, plugin: &mut Plugin) {
-        // Ensure the account is not already in the state
-        let account_exists: Option<Account> =
-            plugin.get(StoragePrefix::Account, account.account_id);
-
-        // If the account already exists... don't add it.
-        if account_exists.is_some() {
-            return;
-        }
-
-        plugin.set(StoragePrefix::Account, &account.account_id, &account);
-    }
 }
 
 fn calculate_weight(block: impl BlockTrait) -> u64 {
@@ -229,6 +237,7 @@ fn calculate_weight(block: impl BlockTrait) -> u64 {
             TransactionType::Transfer { weight, .. } => *weight,
             TransactionType::Mint { weight, .. } => *weight,
             TransactionType::Burn { weight, .. } => *weight,
+            TransactionType::AccountCreation { weight, .. } => *weight,
         })
         .sum()
 }

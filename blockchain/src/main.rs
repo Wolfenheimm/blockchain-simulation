@@ -53,27 +53,45 @@ fn main() {
     // TODO: Simulate the blockchain in its totality
     let mut blockchain: Vec<Block> = vec![GENESIS_BLOCK.clone()];
     let mut plugin = plugin::Plugin::new();
-    let stf = stf::SimpleStf::new(MainNetConfig);
+    let stf: stf::SimpleStf<MainNetConfig> = stf::SimpleStf::new(MainNetConfig);
 
     // Add the genesis block to the state
     stf.execute_block(GENESIS_BLOCK.clone(), &mut plugin);
-
-    // Add the accounts to the state
-    stf.add_account(ALICE.clone(), &mut plugin);
-    stf.add_account(DAVE.clone(), &mut plugin);
 
     for i in 1..=10 {
         let mut new_block = Block {
             header: Header {
                 block_height: i,
                 parent_hash: blockchain[(i - 1) as usize].hash(),
-                state_root: [i.try_into().unwrap(); 32],
-                extrinsics_root: [i.try_into().unwrap(); 32],
+                state_root: [0; 32], // Placeholder -> Execute block should update this at the end once everything is done
+                extrinsics_root: [0; 32], // Placeholder -> Execute block should update this at the end once everything is done
             },
             extrinsics: vec![], // TODO: Extrinsics Pool
         };
 
+        new_block
+            .extrinsics
+            .push(extrinsics::SignedTransaction::new(
+                types::TransactionType::AccountCreation {
+                    weight: 1,
+                    account_id: ALICE.account_id,
+                    balance: 10000000,
+                },
+            ));
+
+        new_block
+            .extrinsics
+            .push(extrinsics::SignedTransaction::new(
+                types::TransactionType::AccountCreation {
+                    weight: 1,
+                    account_id: DAVE.account_id,
+                    balance: 1000,
+                },
+            ));
+
         // TODO: Add extrinsics validation -> don't use push, use a function
+        // TODO: use while loop to add extrinsics, clause to stop at MAX_BLOCK_WEIGHT
+        // STF to save to state for <extrinsics_root, extrinsics>
         // Technically transfer 5k to dave
         for _i in 1..=5 {
             new_block
