@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::error::Error;
 
 // TODO: Add this to types, rename to StorageType
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum StoragePrefix {
     Account,
     Block,
@@ -78,12 +78,11 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
                 TransactionType::Transfer {
                     amount, from, to, ..
                 } => {
-                    // Get the sender's account
+                    // Get the sender and receiver accounts
                     let from_account: Option<Account> = plugin.get(StoragePrefix::Account, from);
-                    // Get the receiver's account
                     let to_account: Option<Account> = plugin.get(StoragePrefix::Account, to);
 
-                    // TODO: explore the use of ? for these Options
+                    // TODO: explore the use of ? for these Options -> TransactionError enum made for this
 
                     // Check if the accounts exist, if they don't, skip the transaction
                     if from_account.is_none() || to_account.is_none() {
@@ -196,11 +195,17 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
     }
 
     fn add_account(&self, account: Account, plugin: &mut Plugin) {
-        plugin.set(
-            StoragePrefix::Account,
-            &account.account_id,
-            &account.balance,
-        );
+        // Ensure the account is not already in the state
+        let account_exists: Option<Account> =
+            plugin.get(StoragePrefix::Account, account.account_id);
+
+        // If the account exists... don't add it.
+        if account_exists.is_some() {
+            return;
+        }
+
+        println!("Adding account to the state: {:?}", account);
+        plugin.set(StoragePrefix::Account, &account.account_id, &account);
     }
 }
 

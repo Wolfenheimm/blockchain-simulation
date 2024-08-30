@@ -57,3 +57,14 @@ pub enum TransactionType {
         amount: u128,
     },
 }
+
+// TODO: Implement it, may have issues with current Option usage
+#[derive(Debug)]
+pub enum TransactionError {
+    AccountNotFound(Hash), // To specify which account was not found
+    InsufficientBalance {
+        account_id: Hash,
+        balance: u128,
+        amount: u128,
+    },
+}

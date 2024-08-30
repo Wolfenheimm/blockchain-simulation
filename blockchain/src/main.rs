@@ -50,24 +50,41 @@ lazy_static! {
 }
 
 fn main() {
-    // TODO: Simulate the blockchain
+    // TODO: Simulate the blockchain in its totality
     let mut blockchain: Vec<Block> = vec![GENESIS_BLOCK.clone()];
     let mut plugin = plugin::Plugin::new();
     let stf = stf::SimpleStf::new(MainNetConfig);
+
+    // Add the accounts to the state
+    stf.add_account(ALICE.clone(), &mut plugin);
+    stf.add_account(DAVE.clone(), &mut plugin);
 
     // Add the genesis block to the state
     stf.execute_block(GENESIS_BLOCK.clone(), &mut plugin);
 
     for i in 1..=10 {
-        let new_block = Block {
+        let mut new_block = Block {
             header: Header {
                 block_height: i,
                 parent_hash: blockchain[(i - 1) as usize].hash(),
                 state_root: [i.try_into().unwrap(); 32],
                 extrinsics_root: [i.try_into().unwrap(); 32],
             },
-            extrinsics: vec![],
+            extrinsics: vec![], // TODO: Extrinsics Pool
         };
+
+        for _i in 1..=5 {
+            new_block
+                .extrinsics
+                .push(extrinsics::SignedTransaction::new(
+                    types::TransactionType::Transfer {
+                        weight: 1,
+                        from: ALICE.account_id,
+                        to: DAVE.account_id,
+                        amount: 100,
+                    },
+                ));
+        }
 
         // Validate the block
         match stf.validate_block(new_block.clone(), &mut plugin) {
@@ -84,13 +101,19 @@ fn main() {
 
     // DEBUGGING
     // --Complete state printout
-    plugin.get_state().print_state();
+    //plugin.get_state().print_state();
     // --Print a known block
     let test_height: u64 = 5;
     let block_hash: Option<[u8; 32]> = plugin.get(StoragePrefix::Block, test_height);
     let block: Option<Block> = plugin.get(StoragePrefix::Block, block_hash.unwrap());
     println!(
-        "Block 5 -> Block Hash: {:?}, Block Data: {:?}",
-        block_hash, block
+        "Block {} ->\nBlock Hash: {:?}\nBlock Data: {:?}",
+        test_height,
+        block_hash.unwrap(),
+        block.unwrap()
     );
+    let alice: Option<Account> = plugin.get(StoragePrefix::Account, ALICE.account_id);
+    let dave: Option<Account> = plugin.get(StoragePrefix::Account, DAVE.account_id);
+    println!("Alice: {:?}", alice);
+    println!("Dave: {:?}", dave);
 }

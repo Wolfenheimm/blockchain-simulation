@@ -1,6 +1,5 @@
 use crate::state::State;
 use serde::{de::DeserializeOwned, Serialize};
-use std::collections::HashMap;
 use std::fmt::Debug;
 
 pub trait StoragePlugin<P, K, V> {
@@ -31,14 +30,14 @@ impl Plugin {
 
 impl<P, K, V> StoragePlugin<P, K, V> for Plugin
 where
-    P: Serialize,
-    K: Serialize,
+    P: Serialize + Debug,
+    K: Serialize + Debug,
     V: Serialize + DeserializeOwned + Debug,
 {
     fn set(&mut self, prefix: P, key: K, value: &V) {
         let encoded_prefix = bincode::serialize(&prefix).unwrap();
         let encoded_key = bincode::serialize(&key).unwrap();
-        let full_key: Vec<_> = encoded_prefix
+        let full_key = encoded_prefix
             .into_iter()
             .chain(encoded_key.into_iter())
             .collect();
@@ -47,18 +46,36 @@ where
     }
 
     fn get(&self, prefix: P, key: K) -> Option<V> {
-        let encoded_prefix = bincode::serialize(&prefix).unwrap();
-        let encoded_key = bincode::serialize(&key).unwrap();
-        let full_key: Vec<_> = encoded_prefix
+        let encoded_prefix = match bincode::serialize(&prefix) {
+            Ok(data) => data,
+            Err(e) => {
+                eprintln!("Failed to serialize prefix: {}", e);
+                return None;
+            }
+        };
+
+        let encoded_key = match bincode::serialize(&key) {
+            Ok(data) => data,
+            Err(e) => {
+                eprintln!("Failed to serialize key: {}", e);
+                return None;
+            }
+        };
+
+        let full_key = encoded_prefix
             .into_iter()
             .chain(encoded_key.into_iter())
             .collect();
-        if let Some(encoded_data) = self.state.get(full_key) {
-            let decoded = bincode::deserialize(&encoded_data[..]).unwrap();
-            println!("Decoded: {:?}", hex::encode(encoded_data));
-            Some(decoded)
-        } else {
-            None
+
+        match self.state.get(full_key) {
+            Some(encoded_data) => match bincode::deserialize(&encoded_data[..]) {
+                Ok(decoded) => Some(decoded),
+                Err(e) => {
+                    eprintln!("Failed to deserialize data: {}", e);
+                    None
+                }
+            },
+            None => None,
         }
     }
 }
