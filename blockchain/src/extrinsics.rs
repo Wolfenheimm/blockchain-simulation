@@ -1,6 +1,5 @@
-use serde::{Deserialize, Serialize};
-
 use crate::types::TransactionType;
+use serde::{Deserialize, Serialize};
 
 pub trait Extrinsics {
     type Extrinsic;

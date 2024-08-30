@@ -20,4 +20,20 @@ impl State {
             data: HashMap::new(),
         }
     }
+
+    // DEBUGGING
+    pub fn print_state(&self) {
+        println!("--- State Dump ---");
+        for (key, value) in &self.data {
+            let key_str = hex::encode(key);
+            let value_str = hex::encode(value);
+
+            println!("Key:");
+            println!("  {}", key_str);
+            println!("Value:");
+            println!("  {}", value_str);
+            println!("----------------------------------------------------");
+        }
+        println!("--- End of State Dump ---");
+    }
 }
