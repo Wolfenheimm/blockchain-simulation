@@ -6,6 +6,8 @@ pub mod plugin;
 pub mod state;
 pub mod stf;
 pub mod types;
+use std::{thread, time::Duration};
+
 use crate::stf::Stf;
 use account::Account;
 use block::{Block, BlockTrait, Header};
@@ -74,6 +76,17 @@ fn main() {
     }
 
     println!("Transaction Pool: {:?}", node.transaction_pool);
+
+    // thread::spawn(|| loop {
+    //     println!("hi infinite looping from the spawned thread!");
+    //     thread::sleep(Duration::from_millis(1));
+    // });
+
+    // for i in 1..5 {
+    //     println!("hi number {i} from the main thread!");
+    //     thread::sleep(Duration::from_millis(1));
+    // }
+
     // for i in 1..=10 {
     //     let mut new_block = Block {
     //         header: Header {
