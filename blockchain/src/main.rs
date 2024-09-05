@@ -6,28 +6,39 @@ pub mod plugin;
 pub mod state;
 pub mod stf;
 pub mod types;
-use std::{thread, time::Duration};
+use rand::Rng;
+use std::{
+    default,
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
+};
 
 use crate::stf::Stf;
 use account::Account;
 use block::{Block, BlockTrait, Header};
-use consensus::{Node, NodeTrait};
+use consensus::{Consensus, ConsensusT, Node, NodeTrait};
+use extrinsics::SignedTransaction;
 use lazy_static::lazy_static;
 use plugin::StoragePlugin;
 use stf::StoragePrefix;
-use types::BlockHeightTrait;
+use types::{BlockHeightTrait, TransactionType};
 
 pub trait Config {
     const MAX_BLOCK_WEIGHT: u64;
     type Height: BlockHeightTrait;
 }
 
+#[derive(Debug)]
 struct MainNetConfig;
 
 impl Config for MainNetConfig {
-    const MAX_BLOCK_WEIGHT: u64 = 1000;
+    const MAX_BLOCK_WEIGHT: u64 = 10;
     type Height = u64;
 }
+
+#[derive(Debug)]
+struct Nodes;
 
 lazy_static! {
     /// The genesis block: the first block in the blockchain.
@@ -38,7 +49,7 @@ lazy_static! {
             state_root: [0;32],
             extrinsics_root: [0;32],
         },
-        extrinsics: vec![],
+        extrinsics: vec![].into(),
     };
 
     static ref ALICE: Account = Account {
@@ -54,137 +65,90 @@ lazy_static! {
 
 fn main() {
     // TODO: Simulate the blockchain in its totality
-    let mut blockchain: Vec<Block> = vec![GENESIS_BLOCK.clone()];
-    let mut plugin = plugin::Plugin::new();
-    let mut node = Node {
-        transaction_pool: vec![],
-    };
-    let stf: stf::SimpleStf<MainNetConfig> = stf::SimpleStf::new(MainNetConfig);
+    let mut block_height = 0;
+    let plugin = plugin::Plugin::new();
+    let node = Arc::new(Mutex::new(Node {
+        transaction_pool: vec![].into(),
+    }));
+    let consensus = Arc::new(Consensus {
+        node_network: Arc::clone(&node), // Here, the node itself serves as the node network
+        phantom: std::marker::PhantomData::<MainNetConfig>,
+    });
+    let mut stf: stf::SimpleStf<MainNetConfig> = stf::SimpleStf::new(MainNetConfig, plugin);
 
-    // Add the genesis block to the state
-    stf.execute_block(GENESIS_BLOCK.clone(), &mut plugin);
+    println!("BLOCKCHAIN BEGIN ~>");
 
-    for _i in 1..=5 {
-        node.add_transaction(extrinsics::SignedTransaction::new(
-            types::TransactionType::Transfer {
-                weight: 1,
-                from: ALICE.account_id,
-                to: DAVE.account_id,
-                amount: 100,
-            },
-        ));
-    }
+    thread::scope(|s| {
+        let node_clone = Arc::clone(&node);
+        s.spawn(move || loop {
+            {
+                let mut node = node_clone.lock().unwrap();
+                let num: u32 = rand::thread_rng().gen_range(0..=2);
 
-    println!("Transaction Pool: {:?}", node.transaction_pool);
+                match num {
+                    0 => node.add_transaction(extrinsics::SignedTransaction::new(
+                        types::TransactionType::Transfer {
+                            weight: 1,
+                            from: ALICE.account_id,
+                            to: DAVE.account_id,
+                            amount: 100,
+                        },
+                    )),
+                    1 => node.add_transaction(extrinsics::SignedTransaction::new(
+                        types::TransactionType::Mint {
+                            weight: 1,
+                            to: DAVE.account_id,
+                            amount: 100,
+                        },
+                    )),
+                    2 => node.add_transaction(extrinsics::SignedTransaction::new(
+                        types::TransactionType::Burn {
+                            weight: 1,
+                            from: ALICE.account_id,
+                            amount: 100,
+                        },
+                    )),
+                    _default => node.add_transaction(extrinsics::SignedTransaction::new(
+                        types::TransactionType::Burn {
+                            weight: 1,
+                            from: ALICE.account_id,
+                            amount: 100,
+                        },
+                    )),
+                }
+            }
+            thread::sleep(Duration::from_millis(1000));
+        });
+        s.spawn(move || loop {
+            let mut current_transactions: Vec<SignedTransaction> = Default::default();
 
-    // thread::spawn(|| loop {
-    //     println!("hi infinite looping from the spawned thread!");
-    //     thread::sleep(Duration::from_millis(1));
-    // });
+            if block_height != 0 {
+                for _i in 1..=MainNetConfig::MAX_BLOCK_WEIGHT {
+                    if node.lock().unwrap().transaction_pool.len() > 0 {
+                        current_transactions
+                            .push(node.lock().unwrap().transaction_pool.pop_back().unwrap());
+                    } else {
+                        break;
+                    }
+                }
+            }
 
-    // for i in 1..5 {
-    //     println!("hi number {i} from the main thread!");
-    //     thread::sleep(Duration::from_millis(1));
-    // }
+            consensus.import_block(
+                &mut block::Block {
+                    header: Header {
+                        block_height: block_height,
+                        parent_hash: GENESIS_BLOCK.hash(),
+                        state_root: [0; 32],
+                        extrinsics_root: [0; 32],
+                    },
+                    extrinsics: current_transactions.clone(),
+                },
+                &mut stf,
+            );
 
-    // for i in 1..=10 {
-    //     let mut new_block = Block {
-    //         header: Header {
-    //             block_height: i,
-    //             parent_hash: blockchain[(i - 1) as usize].hash(),
-    //             state_root: [0; 32], // Placeholder -> Execute block should update this at the end once everything is done
-    //             extrinsics_root: [0; 32], // Placeholder -> Execute block should update this at the end once everything is done
-    //         },
-    //         extrinsics: vec![], // TODO: Extrinsics Pool
-    //     };
+            block_height += 1;
 
-    //     new_block
-    //         .extrinsics
-    //         .push(extrinsics::SignedTransaction::new(
-    //             types::TransactionType::AccountCreation {
-    //                 weight: 1,
-    //                 account_id: ALICE.account_id,
-    //                 balance: 10000000,
-    //             },
-    //         ));
-
-    //     new_block
-    //         .extrinsics
-    //         .push(extrinsics::SignedTransaction::new(
-    //             types::TransactionType::AccountCreation {
-    //                 weight: 1,
-    //                 account_id: DAVE.account_id,
-    //                 balance: 1000,
-    //             },
-    //         ));
-
-    //     // TODO: Add extrinsics validation -> don't use push, use a function
-    //     // TODO: use while loop to add extrinsics, clause to stop at MAX_BLOCK_WEIGHT
-    //     // STF to save to state for <extrinsics_root, extrinsics>
-    //     // Technically transfer 5k to dave
-    //     for _i in 1..=5 {
-    //         new_block
-    //             .extrinsics
-    //             .push(extrinsics::SignedTransaction::new(
-    //                 types::TransactionType::Transfer {
-    //                     weight: 1,
-    //                     from: ALICE.account_id,
-    //                     to: DAVE.account_id,
-    //                     amount: 100,
-    //                 },
-    //             ));
-    //     }
-
-    //     // Technically mint 100 to alice
-    //     new_block
-    //         .extrinsics
-    //         .push(extrinsics::SignedTransaction::new(
-    //             types::TransactionType::Mint {
-    //                 weight: 1,
-    //                 to: ALICE.account_id,
-    //                 amount: 10,
-    //             },
-    //         ));
-
-    //     // Technically burn 10k from alice
-    //     new_block
-    //         .extrinsics
-    //         .push(extrinsics::SignedTransaction::new(
-    //             types::TransactionType::Burn {
-    //                 weight: 1,
-    //                 from: ALICE.account_id,
-    //                 amount: 1000,
-    //             },
-    //         ));
-
-    //     // Validate the block
-    //     match stf.validate_block(new_block.clone(), &mut plugin) {
-    //         Ok(_) => {
-    //             // Execute the block
-    //             stf.execute_block(new_block.clone(), &mut plugin);
-    //             blockchain.push(new_block);
-    //         }
-    //         Err(e) => {
-    //             println!("Error: {}", e);
-    //         }
-    //     }
+            thread::sleep(Duration::from_millis(6000));
+        });
+    });
 }
-
-// DEBUGGING
-// --Complete state printout
-//plugin.get_state().print_state();
-// --Print a known block
-//     let test_height: u64 = 5;
-//     let block_hash: Option<[u8; 32]> = plugin.get(StoragePrefix::Block, test_height);
-//     let block: Option<Block> = plugin.get(StoragePrefix::Block, block_hash.unwrap_or_default());
-//     println!(
-//         "Example: Block {} ->\nBlock Hash: {:?}\nBlock Data: {:?}",
-//         test_height,
-//         block_hash.unwrap_or_default(),
-//         block.unwrap_or_default()
-//     );
-//     let alice: Option<Account> = plugin.get(StoragePrefix::Account, ALICE.account_id);
-//     let dave: Option<Account> = plugin.get(StoragePrefix::Account, DAVE.account_id);
-//     println!("Alice: {:?}", alice);
-//     println!("Dave: {:?}", dave);
-// }

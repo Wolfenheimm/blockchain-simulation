@@ -15,34 +15,39 @@ pub enum StoragePrefix {
 }
 
 pub trait Stf<T: Config> {
-    fn validate_block(&self, block: Block, plugin: &mut Plugin) -> Result<(), Box<dyn Error>>;
-    fn execute_block(&self, block: Block, plugin: &mut Plugin);
-    fn validate_account(&self, account: Account, plugin: &mut Plugin)
-        -> Result<(), Box<dyn Error>>;
+    fn validate_block(&mut self, block: Block) -> Result<(), Box<dyn Error>>;
+    fn execute_block(&mut self, block: Block);
+    fn validate_account(&mut self, account: Account) -> Result<(), Box<dyn Error>>;
+    fn get_block_hash(&self, block_height: u64) -> Option<[u8; 32]>;
+    fn get_account(&self, account_id: [u8; 32]) -> Option<Account>;
 }
 
 pub struct SimpleStf<T: Config> {
     config: T,
+    plugin: Plugin,
 }
 
 impl<T: Config> SimpleStf<T> {
-    pub fn new(config: T) -> Self {
-        SimpleStf { config }
+    pub fn new(config: T, plugin: Plugin) -> Self {
+        SimpleStf { config, plugin }
     }
 }
 
 impl<T: Config> Stf<T> for SimpleStf<T> {
-    fn validate_block(&self, block: Block, plugin: &mut Plugin) -> Result<(), Box<dyn Error>> {
+    fn validate_block(&mut self, block: Block) -> Result<(), Box<dyn Error>> {
         // Ensure the block is not already in the state
-        let block_exists: Option<()> = plugin.get(StoragePrefix::Block, block.header.block_height);
+        let block_exists: Option<()> = self
+            .plugin
+            .get(StoragePrefix::Block, block.header.block_height);
         // If exists... big no-no
         if block_exists.is_some() {
             return Err("Block already exists in the state.".into());
         }
 
         // Check if the parent block exists from State
-        let parent_block_key: Option<[u8; 32]> =
-            plugin.get(StoragePrefix::Block, block.header.block_height - 1);
+        let parent_block_key: Option<[u8; 32]> = self
+            .plugin
+            .get(StoragePrefix::Block, block.header.block_height - 1);
 
         // If parent block does not exist... big no-no
         if parent_block_key.is_none() {
@@ -64,15 +69,15 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
         Ok(())
     }
 
-    fn execute_block(&self, block: Block, plugin: &mut Plugin) {
+    fn execute_block(&mut self, block: Block) {
         // Add the block to the state. B# -> BH & BH -> B
         let block_hash = block.hash();
-        plugin.set(
+        self.plugin.set(
             StoragePrefix::Block,
             &block.header.block_height,
             &block_hash,
         );
-        plugin.set(StoragePrefix::Block, &block_hash, &block);
+        self.plugin.set(StoragePrefix::Block, &block_hash, &block);
 
         for transaction in block.extrinsics() {
             // Apply the transaction, then update state
@@ -81,8 +86,9 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
                     amount, from, to, ..
                 } => {
                     // Get the sender and receiver accounts
-                    let from_account: Option<Account> = plugin.get(StoragePrefix::Account, from);
-                    let to_account: Option<Account> = plugin.get(StoragePrefix::Account, to);
+                    let from_account: Option<Account> =
+                        self.plugin.get(StoragePrefix::Account, from);
+                    let to_account: Option<Account> = self.plugin.get(StoragePrefix::Account, to);
 
                     // TODO: explore the use of ? for these Options -> TransactionError enum made for this
 
@@ -109,7 +115,7 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
                         balance: from_account.unwrap().balance - amount,
                     };
                     // Push
-                    plugin.set(
+                    self.plugin.set(
                         StoragePrefix::Account,
                         &from_account.unwrap().account_id,
                         &updated_from_account,
@@ -121,7 +127,7 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
                         balance: to_account.unwrap().balance + amount,
                     };
                     // Push
-                    plugin.set(
+                    self.plugin.set(
                         StoragePrefix::Account,
                         &to_account.unwrap().account_id,
                         &updated_to_account,
@@ -129,7 +135,7 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
                 }
                 TransactionType::Mint { amount, to, .. } => {
                     // Get the receiver's account
-                    let to_account: Option<Account> = plugin.get(StoragePrefix::Account, to);
+                    let to_account: Option<Account> = self.plugin.get(StoragePrefix::Account, to);
 
                     // Check if the account exists, if it doesn't, skip the transaction
                     if to_account.is_none() {
@@ -143,7 +149,7 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
                         balance: to_account.unwrap().balance + amount,
                     };
                     // Push
-                    plugin.set(
+                    self.plugin.set(
                         StoragePrefix::Account,
                         &to_account.unwrap().account_id,
                         &updated_to_account,
@@ -151,7 +157,8 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
                 }
                 TransactionType::Burn { amount, from, .. } => {
                     // Get the sender's account
-                    let from_account: Option<Account> = plugin.get(StoragePrefix::Account, from);
+                    let from_account: Option<Account> =
+                        self.plugin.get(StoragePrefix::Account, from);
 
                     // Check if the account exists, if it doesn't, skip the transaction
                     if from_account.is_none() {
@@ -172,7 +179,7 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
                         balance: from_account.unwrap().balance - amount,
                     };
                     // Push
-                    plugin.set(
+                    self.plugin.set(
                         StoragePrefix::Account,
                         &from_account.unwrap().account_id,
                         &updated_from_account,
@@ -190,10 +197,11 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
                     };
 
                     // Validate the account
-                    match self.validate_account(account, plugin) {
+                    match self.validate_account(account) {
                         Ok(_) => {
                             // Add the account to the state
-                            plugin.set(StoragePrefix::Account, &account.account_id, &account);
+                            self.plugin
+                                .set(StoragePrefix::Account, &account.account_id, &account);
                         }
                         Err(e) => {
                             eprintln!("Error: {}", e);
@@ -204,7 +212,7 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
 
             // TODO: If something happened, think about a rollback...
             // Add the transaction to the state
-            plugin.set(
+            self.plugin.set(
                 StoragePrefix::Extrinsic,
                 &block.header.block_height,
                 transaction,
@@ -212,14 +220,10 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
         }
     }
 
-    fn validate_account(
-        &self,
-        account: Account,
-        plugin: &mut Plugin,
-    ) -> Result<(), Box<dyn Error>> {
+    fn validate_account(&mut self, account: Account) -> Result<(), Box<dyn Error>> {
         // Check if the account is not already in the state
         let account_exists: Option<Account> =
-            plugin.get(StoragePrefix::Account, account.account_id);
+            self.plugin.get(StoragePrefix::Account, account.account_id);
         // If the account exists... big no-no
         if account_exists.is_some() {
             return Err("Account already exists in the state.".into());
@@ -227,17 +231,16 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
 
         Ok(())
     }
+
+    fn get_block_hash(&self, block_height: u64) -> Option<[u8; 32]> {
+        self.plugin.get(StoragePrefix::Block, block_height)
+    }
+
+    fn get_account(&self, account_id: [u8; 32]) -> Option<Account> {
+        self.plugin.get(StoragePrefix::Account, account_id)
+    }
 }
 
 fn calculate_weight(block: impl BlockTrait) -> u64 {
-    block
-        .extrinsics()
-        .iter()
-        .map(|e| match &e.transaction_type {
-            TransactionType::Transfer { weight, .. } => *weight,
-            TransactionType::Mint { weight, .. } => *weight,
-            TransactionType::Burn { weight, .. } => *weight,
-            TransactionType::AccountCreation { weight, .. } => *weight,
-        })
-        .sum()
+    block.extrinsics().iter().map(|e| e.weight()).sum()
 }

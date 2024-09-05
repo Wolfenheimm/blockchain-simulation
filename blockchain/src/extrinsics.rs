@@ -5,7 +5,6 @@ pub trait Extrinsics {
     type Extrinsic;
 
     fn add_extrinsic(&mut self, transaction_type: TransactionType);
-    fn get_latest_extrinsic(&self) -> &Self::Extrinsic;
 }
 
 impl Extrinsics for Vec<SignedTransaction> {
@@ -14,16 +13,11 @@ impl Extrinsics for Vec<SignedTransaction> {
     fn add_extrinsic(&mut self, transaction_type: TransactionType) {
         let new_extrinsic = SignedTransaction::new(transaction_type);
 
-        self.push(new_extrinsic);
-    }
-
-    fn get_latest_extrinsic(&self) -> &Self::Extrinsic {
-        self.last()
-            .expect("The extrinsics have not been initialized")
+        self.push(new_extrinsic)
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub struct SignedTransaction {
     pub transaction_type: TransactionType,
 }
@@ -31,5 +25,14 @@ pub struct SignedTransaction {
 impl SignedTransaction {
     pub fn new(transaction_type: TransactionType) -> Self {
         SignedTransaction { transaction_type }
+    }
+
+    pub fn weight(&self) -> u64 {
+        match self.transaction_type {
+            TransactionType::Transfer { weight, .. } => weight,
+            TransactionType::Mint { weight, .. } => weight,
+            TransactionType::Burn { weight, .. } => weight,
+            TransactionType::AccountCreation { weight, .. } => weight,
+        }
     }
 }
