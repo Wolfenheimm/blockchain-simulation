@@ -12,7 +12,7 @@ pub trait Nodes<T: Config> {
     /// Return the block with the given number.
     ///
     /// Should be used when a node encounters a new canonical fork and needs to reorg to the new chain.
-    fn request_block(&self, block_number: T::Height) -> Block;
+    fn request_block(&self, block_number: T::MaxBlockHeight) -> Block;
 }
 
 pub trait ConsensusT<T: Config> {
@@ -50,6 +50,7 @@ impl<T: Config, N: Nodes<T>> ConsensusT<T> for Consensus<T, N> {
             ));
             stf.execute_block(block.clone());
         } else {
+            println!("Block Height: {}", block.header.block_height);
             block.header.parent_hash = stf.get_block_hash(block.header.block_height - 1).unwrap();
             match stf.validate_block(block.clone()) {
                 Ok(_) => {
@@ -61,7 +62,6 @@ impl<T: Config, N: Nodes<T>> ConsensusT<T> for Consensus<T, N> {
                 }
             }
 
-            println!("Block Height: {}", block.header.block_height);
             println!("Account ALICE: {:?}", stf.get_account([0; 32]));
             println!("Account DAVE: {:?}", stf.get_account([1; 32]));
         }
@@ -74,7 +74,7 @@ pub struct Node {
 }
 
 impl<T: Config> Nodes<T> for Arc<Mutex<Node>> {
-    fn request_block(&self, block_number: T::Height) -> Block {
+    fn request_block(&self, block_number: T::MaxBlockHeight) -> Block {
         todo!()
     }
 }

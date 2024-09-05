@@ -1,22 +1,6 @@
 use crate::types::TransactionType;
 use serde::{Deserialize, Serialize};
 
-pub trait Extrinsics {
-    type Extrinsic;
-
-    fn add_extrinsic(&mut self, transaction_type: TransactionType);
-}
-
-impl Extrinsics for Vec<SignedTransaction> {
-    type Extrinsic = SignedTransaction;
-
-    fn add_extrinsic(&mut self, transaction_type: TransactionType) {
-        let new_extrinsic = SignedTransaction::new(transaction_type);
-
-        self.push(new_extrinsic)
-    }
-}
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub struct SignedTransaction {
     pub transaction_type: TransactionType,

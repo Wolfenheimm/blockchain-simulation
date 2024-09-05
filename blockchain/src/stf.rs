@@ -3,6 +3,7 @@ use crate::block::{Block, BlockTrait};
 use crate::plugin::{Plugin, StoragePlugin};
 use crate::types::TransactionType;
 use crate::Config;
+use crate::Get;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 
@@ -60,11 +61,6 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
         }
         // ^^^ This is a potential fork scenario
         // TODO: This could potentially be a trigger event which would check consensus and fetch the accepted chain
-
-        // Ensure the block does not exceed its maximum weight
-        if calculate_weight(block) > T::MAX_BLOCK_WEIGHT {
-            return Err("Block exceeds maximum weight.".into());
-        }
 
         Ok(())
     }
@@ -239,8 +235,4 @@ impl<T: Config> Stf<T> for SimpleStf<T> {
     fn get_account(&self, account_id: [u8; 32]) -> Option<Account> {
         self.plugin.get(StoragePrefix::Account, account_id)
     }
-}
-
-fn calculate_weight(block: impl BlockTrait) -> u64 {
-    block.extrinsics().iter().map(|e| e.weight()).sum()
 }

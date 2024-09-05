@@ -6,39 +6,47 @@ pub mod plugin;
 pub mod state;
 pub mod stf;
 pub mod types;
-use rand::Rng;
-use std::{
-    default,
-    sync::{Arc, Mutex},
-    thread,
-    time::Duration,
-};
-
-use crate::stf::Stf;
 use account::Account;
 use block::{Block, BlockTrait, Header};
 use consensus::{Consensus, ConsensusT, Node, NodeTrait};
 use extrinsics::SignedTransaction;
 use lazy_static::lazy_static;
-use plugin::StoragePlugin;
-use stf::StoragePrefix;
-use types::{BlockHeightTrait, TransactionType};
+use rand::Rng;
+use std::{
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
+};
+use types::{MaxBlockHeightImpl, MaxBlockWeightImpl};
 
 pub trait Config {
-    const MAX_BLOCK_WEIGHT: u64;
-    type Height: BlockHeightTrait;
+    type MaxBlockWeight: Get<u64>;
+    type MaxBlockHeight: Get<u64>;
+}
+
+pub trait Get<T> {
+    fn get(&self) -> T;
+}
+
+impl Get<u64> for MaxBlockWeightImpl {
+    fn get(&self) -> u64 {
+        10
+    }
+}
+
+impl Get<u64> for MaxBlockHeightImpl {
+    fn get(&self) -> u64 {
+        100000
+    }
 }
 
 #[derive(Debug)]
 struct MainNetConfig;
 
 impl Config for MainNetConfig {
-    const MAX_BLOCK_WEIGHT: u64 = 10;
-    type Height = u64;
+    type MaxBlockWeight = MaxBlockWeightImpl;
+    type MaxBlockHeight = MaxBlockHeightImpl;
 }
-
-#[derive(Debug)]
-struct Nodes;
 
 lazy_static! {
     /// The genesis block: the first block in the blockchain.
@@ -48,6 +56,7 @@ lazy_static! {
             parent_hash: [0;32],
             state_root: [0;32],
             extrinsics_root: [0;32],
+            block_weight: 0,
         },
         extrinsics: vec![].into(),
     };
@@ -117,37 +126,45 @@ fn main() {
                     )),
                 }
             }
-            thread::sleep(Duration::from_millis(1000));
+            thread::sleep(Duration::from_millis(400));
         });
         s.spawn(move || loop {
-            let mut current_transactions: Vec<SignedTransaction> = Default::default();
+            let mut block = block::Block {
+                header: Header {
+                    block_height: block_height,
+                    parent_hash: GENESIS_BLOCK.hash(),
+                    state_root: [0; 32],
+                    extrinsics_root: [0; 32],
+                    block_weight: 0,
+                },
+                extrinsics: Vec::new(),
+            };
 
             if block_height != 0 {
-                for _i in 1..=MainNetConfig::MAX_BLOCK_WEIGHT {
-                    if node.lock().unwrap().transaction_pool.len() > 0 {
-                        current_transactions
-                            .push(node.lock().unwrap().transaction_pool.pop_back().unwrap());
-                    } else {
-                        break;
+                let mut node = node.lock().unwrap();
+
+                // Keep pulling from the transaction pool until the block weight limit is reached
+                while let Some(transaction) = node.transaction_pool.pop_back() {
+                    // Check if the extrinsic can be added
+                    match block.add_extrinsic(transaction, transaction.weight()) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            // Block weight limit exceeded, break the loop and rollback...
+                            println!("{}", e);
+                            node.transaction_pool.push_back(transaction);
+                            break;
+                        }
                     }
                 }
             }
 
-            consensus.import_block(
-                &mut block::Block {
-                    header: Header {
-                        block_height: block_height,
-                        parent_hash: GENESIS_BLOCK.hash(),
-                        state_root: [0; 32],
-                        extrinsics_root: [0; 32],
-                    },
-                    extrinsics: current_transactions.clone(),
-                },
-                &mut stf,
-            );
+            // Import the block with the collected transactions and final weight
+            consensus.import_block(&mut block, &mut stf);
 
+            // Increment block height for the next block
             block_height += 1;
 
+            // Sleep for a while before producing the next block
             thread::sleep(Duration::from_millis(6000));
         });
     });
