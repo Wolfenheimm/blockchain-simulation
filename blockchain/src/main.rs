@@ -97,7 +97,6 @@ fn main() {
                 match num {
                     0 => node.add_transaction(extrinsics::SignedTransaction::new(
                         types::TransactionType::Transfer {
-                            weight: 1,
                             from: ALICE.account_id,
                             to: DAVE.account_id,
                             amount: 100,
@@ -105,21 +104,18 @@ fn main() {
                     )),
                     1 => node.add_transaction(extrinsics::SignedTransaction::new(
                         types::TransactionType::Mint {
-                            weight: 1,
                             to: DAVE.account_id,
                             amount: 100,
                         },
                     )),
                     2 => node.add_transaction(extrinsics::SignedTransaction::new(
                         types::TransactionType::Burn {
-                            weight: 1,
                             from: ALICE.account_id,
                             amount: 100,
                         },
                     )),
                     _default => node.add_transaction(extrinsics::SignedTransaction::new(
                         types::TransactionType::Burn {
-                            weight: 1,
                             from: ALICE.account_id,
                             amount: 100,
                         },
@@ -146,7 +142,7 @@ fn main() {
                 // Keep pulling from the transaction pool until the block weight limit is reached
                 while let Some(transaction) = node.transaction_pool.pop_back() {
                     // Check if the extrinsic can be added
-                    match block.add_extrinsic(transaction, transaction.weight()) {
+                    match block.add_extrinsic(transaction) {
                         Ok(_) => {}
                         Err(e) => {
                             // Block weight limit exceeded, break the loop and rollback...

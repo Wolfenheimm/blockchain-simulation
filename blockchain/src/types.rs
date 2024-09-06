@@ -27,26 +27,33 @@ impl HashTrait for Hash {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TransactionType {
     Transfer {
-        weight: u64,
         from: [u8; 32],
         to: [u8; 32],
         amount: u128,
     },
     Mint {
-        weight: u64,
         to: [u8; 32],
         amount: u128,
     },
     Burn {
-        weight: u64,
         from: [u8; 32],
         amount: u128,
     },
     AccountCreation {
-        weight: u64,
         account_id: [u8; 32],
         balance: u128,
     },
+}
+
+impl TransactionType {
+    pub fn weight(&self) -> u64 {
+        match self {
+            Self::Transfer { .. } => 1,
+            Self::Mint { .. } => 1,
+            Self::Burn { .. } => 1,
+            Self::AccountCreation { .. } => 1,
+        }
+    }
 }
 
 // TODO: Implement it, may have issues with current Option usage

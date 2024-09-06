@@ -36,14 +36,12 @@ impl<T: Config, N: Nodes<T>> ConsensusT<T> for Consensus<T, N> {
             // Genesis block
             block.extrinsics.push(extrinsics::SignedTransaction::new(
                 types::TransactionType::AccountCreation {
-                    weight: 1,
                     account_id: [0; 32], // ALICE
                     balance: 10000000000,
                 },
             ));
             block.extrinsics.push(extrinsics::SignedTransaction::new(
                 types::TransactionType::AccountCreation {
-                    weight: 1,
                     account_id: [1; 32], // DAVE
                     balance: 1000,
                 },

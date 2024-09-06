@@ -12,11 +12,6 @@ impl SignedTransaction {
     }
 
     pub fn weight(&self) -> u64 {
-        match self.transaction_type {
-            TransactionType::Transfer { weight, .. } => weight,
-            TransactionType::Mint { weight, .. } => weight,
-            TransactionType::Burn { weight, .. } => weight,
-            TransactionType::AccountCreation { weight, .. } => weight,
-        }
+        self.transaction_type.weight()
     }
 }

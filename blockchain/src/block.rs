@@ -6,7 +6,7 @@ use crate::{
     types::{BlockHeight, BlockWeight, Hash},
 };
 
-const MAX_BLOCK_WEIGHT: BlockWeight = 1000;
+const MAX_BLOCK_WEIGHT: BlockWeight = 10;
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct Block {
@@ -26,11 +26,7 @@ pub struct Header {
 pub trait BlockTrait {
     fn extrinsics(&self) -> &Vec<SignedTransaction>;
     fn hash(&self) -> [u8; 32];
-    fn add_extrinsic(
-        &mut self,
-        extrinsic: SignedTransaction,
-        weight: BlockWeight,
-    ) -> Result<(), String>;
+    fn add_extrinsic(&mut self, extrinsic: SignedTransaction) -> Result<(), String>;
     fn can_add_extrinsic(&self, weight: BlockWeight) -> bool;
 }
 
@@ -57,19 +53,17 @@ impl BlockTrait for Block {
     }
 
     // Method to add an extrinsic if it does not exceed the maximum block weight
-    fn add_extrinsic(
-        &mut self,
-        extrinsic: SignedTransaction,
-        weight: BlockWeight,
-    ) -> Result<(), String> {
-        if self.can_add_extrinsic(weight) {
+    fn add_extrinsic(&mut self, extrinsic: SignedTransaction) -> Result<(), String> {
+        if self.can_add_extrinsic(extrinsic.weight()) {
             self.extrinsics.push(extrinsic);
-            self.header.block_weight += weight;
+            self.header.block_weight += extrinsic.weight();
             Ok(())
         } else {
             Err(format!(
                 "Block weight exceeded. Max allowed: {}, Current: {}, New Extrinsic: {}",
-                MAX_BLOCK_WEIGHT, self.header.block_weight, weight
+                MAX_BLOCK_WEIGHT,
+                self.header.block_weight,
+                extrinsic.weight()
             ))
         }
     }
