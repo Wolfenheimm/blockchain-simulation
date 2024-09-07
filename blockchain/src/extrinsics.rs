@@ -1,17 +1,25 @@
-use crate::types::TransactionType;
+use crate::{types::TransactionType, Config};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
-pub struct SignedTransaction {
-    pub transaction_type: TransactionType,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SignedTransaction<T: Config> {
+    pub transaction_type: TransactionType<T>,
 }
 
-impl SignedTransaction {
-    pub fn new(transaction_type: TransactionType) -> Self {
+impl<T: Config> Clone for SignedTransaction<T> {
+    fn clone(&self) -> Self {
+        Self {
+            transaction_type: self.transaction_type.clone(),
+        }
+    }
+}
+
+impl<T: Config> SignedTransaction<T> {
+    pub fn new(transaction_type: TransactionType<T>) -> Self {
         SignedTransaction { transaction_type }
     }
 
-    pub fn weight(&self) -> u64 {
+    pub fn weight(&self) -> T::WeightType {
         self.transaction_type.weight()
     }
 }

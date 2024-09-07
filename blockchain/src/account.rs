@@ -1,9 +1,18 @@
 use serde::{Deserialize, Serialize};
 
-use crate::types::Hash;
+use crate::Config;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
-pub struct Account {
-    pub account_id: Hash,
-    pub balance: u128,
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct Account<T: Config> {
+    pub account_id: T::Hash,
+    pub balance: T::Funds,
+}
+
+impl<T: Config> Clone for Account<T> {
+    fn clone(&self) -> Self {
+        Self {
+            account_id: self.account_id.clone(),
+            balance: self.balance.clone(),
+        }
+    }
 }

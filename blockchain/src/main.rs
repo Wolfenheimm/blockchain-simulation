@@ -6,75 +6,89 @@ pub mod plugin;
 pub mod state;
 pub mod stf;
 pub mod types;
-use account::Account;
-use block::{Block, BlockTrait, Header};
-use consensus::{Consensus, ConsensusT, Node, NodeTrait};
-use extrinsics::SignedTransaction;
-use lazy_static::lazy_static;
+use crate::block::BlockTrait;
+use block::Header;
+use consensus::{Consensus, ConsensusT, Node, RpcNode};
 use rand::Rng;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
+use std::fmt::{Debug, Display};
+use std::ops::{Add, AddAssign, Sub};
 use std::{
     sync::{Arc, Mutex},
     thread,
     time::Duration,
 };
-use types::{MaxBlockHeightImpl, MaxBlockWeightImpl};
+use types::{Height, MaxBlockHeight, MaxBlockWeight};
 
 pub trait Config {
-    type MaxBlockWeight: Get<u64>;
-    type MaxBlockHeight: Get<u64>;
+    type MaxBlockWeight: Get<Self::WeightType>;
+    type MaxBlockHeight: Get<Self::HeightType>;
+    type WeightType: Clone
+        + Debug
+        + Serialize
+        + DeserializeOwned
+        + Add<Output = Self::WeightType>
+        + From<u64>
+        + AddAssign
+        + PartialOrd
+        + Display;
+    type HeightType: Clone
+        + Serialize
+        + DeserializeOwned
+        + Debug
+        + Display
+        + PartialEq
+        + From<u64>
+        + Sub<Output = Self::HeightType>
+        + Into<Vec<u8>>
+        + Zero
+        + One
+        + AddAssign;
+    type Hash: Serialize
+        + DeserializeOwned
+        + Debug
+        + AsRef<[u8]>
+        + Copy
+        + PartialEq
+        + From<[u8; 32]>;
+    type Funds: Copy
+        + Debug
+        + Serialize
+        + DeserializeOwned
+        + From<u128>
+        + PartialOrd
+        + Add<Output = Self::Funds>
+        + Sub<Output = Self::Funds>;
+}
+
+pub trait Zero {
+    fn zero() -> Self;
+}
+
+pub trait One {
+    fn one() -> Self;
 }
 
 pub trait Get<T> {
-    fn get(&self) -> T;
+    fn get() -> T;
 }
 
-impl Get<u64> for MaxBlockWeightImpl {
-    fn get(&self) -> u64 {
-        10
-    }
-}
-
-impl Get<u64> for MaxBlockHeightImpl {
-    fn get(&self) -> u64 {
-        100000
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 struct MainNetConfig;
 
 impl Config for MainNetConfig {
-    type MaxBlockWeight = MaxBlockWeightImpl;
-    type MaxBlockHeight = MaxBlockHeightImpl;
-}
-
-lazy_static! {
-    /// The genesis block: the first block in the blockchain.
-    static ref GENESIS_BLOCK: Block = Block {
-        header: Header {
-            block_height: 0,
-            parent_hash: [0;32],
-            state_root: [0;32],
-            extrinsics_root: [0;32],
-            block_weight: 0,
-        },
-        extrinsics: vec![].into(),
-    };
-
-    static ref ALICE: Account = Account {
-        account_id: [0;32],
-        balance: 1000000000,
-    };
-
-    static ref DAVE: Account = Account {
-        account_id: [1;32],
-        balance: 1000,
-    };
+    type MaxBlockWeight = MaxBlockWeight;
+    type MaxBlockHeight = MaxBlockHeight;
+    type WeightType = u64;
+    type HeightType = Height;
+    type Hash = [u8; 32];
+    type Funds = u128;
 }
 
 fn main() {
     // TODO: Simulate the blockchain in its totality
-    let mut block_height = 0;
+    let mut block_height = Height::zero();
     let plugin = plugin::Plugin::new();
     let node = Arc::new(Mutex::new(Node {
         transaction_pool: vec![].into(),
@@ -83,7 +97,7 @@ fn main() {
         node_network: Arc::clone(&node), // Here, the node itself serves as the node network
         phantom: std::marker::PhantomData::<MainNetConfig>,
     });
-    let mut stf: stf::SimpleStf<MainNetConfig> = stf::SimpleStf::new(MainNetConfig, plugin);
+    let mut stf: stf::SimpleStf<MainNetConfig> = stf::SimpleStf::new(plugin);
 
     println!("BLOCKCHAIN BEGIN ~>");
 
@@ -95,28 +109,28 @@ fn main() {
                 let num: u32 = rand::thread_rng().gen_range(0..=2);
 
                 match num {
-                    0 => node.add_transaction(extrinsics::SignedTransaction::new(
+                    0 => node.submit_extrinsic(extrinsics::SignedTransaction::new(
                         types::TransactionType::Transfer {
-                            from: ALICE.account_id,
-                            to: DAVE.account_id,
+                            from: [0; 32],
+                            to: [1; 32],
                             amount: 100,
                         },
                     )),
-                    1 => node.add_transaction(extrinsics::SignedTransaction::new(
+                    1 => node.submit_extrinsic(extrinsics::SignedTransaction::new(
                         types::TransactionType::Mint {
-                            to: DAVE.account_id,
+                            to: [1; 32],
                             amount: 100,
                         },
                     )),
-                    2 => node.add_transaction(extrinsics::SignedTransaction::new(
+                    2 => node.submit_extrinsic(extrinsics::SignedTransaction::new(
                         types::TransactionType::Burn {
-                            from: ALICE.account_id,
+                            from: [0; 32],
                             amount: 100,
                         },
                     )),
-                    _default => node.add_transaction(extrinsics::SignedTransaction::new(
+                    _default => node.submit_extrinsic(extrinsics::SignedTransaction::new(
                         types::TransactionType::Burn {
-                            from: ALICE.account_id,
+                            from: [0; 32],
                             amount: 100,
                         },
                     )),
@@ -127,8 +141,8 @@ fn main() {
         s.spawn(move || loop {
             let mut block = block::Block {
                 header: Header {
-                    block_height: block_height,
-                    parent_hash: GENESIS_BLOCK.hash(),
+                    block_height,
+                    parent_hash: [0; 32],
                     state_root: [0; 32],
                     extrinsics_root: [0; 32],
                     block_weight: 0,
@@ -136,13 +150,15 @@ fn main() {
                 extrinsics: Vec::new(),
             };
 
-            if block_height != 0 {
+            if block_height != Height::zero() {
                 let mut node = node.lock().unwrap();
 
                 // Keep pulling from the transaction pool until the block weight limit is reached
+                //let x = node.transaction_pool.get(node.transaction_pool.len());
+                //let y = node.transaction_pool.split_off(at);
                 while let Some(transaction) = node.transaction_pool.pop_back() {
                     // Check if the extrinsic can be added
-                    match block.add_extrinsic(transaction) {
+                    match block.add_extrinsic(transaction.clone()) {
                         Ok(_) => {}
                         Err(e) => {
                             // Block weight limit exceeded, break the loop and rollback...
@@ -158,7 +174,7 @@ fn main() {
             consensus.import_block(&mut block, &mut stf);
 
             // Increment block height for the next block
-            block_height += 1;
+            block_height += Height::one();
 
             // Sleep for a while before producing the next block
             thread::sleep(Duration::from_millis(6000));
