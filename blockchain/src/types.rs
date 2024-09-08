@@ -1,7 +1,6 @@
 use crate::Get;
 use crate::{Config, One, Zero};
 use serde::{Deserialize, Serialize};
-use std::fmt::{self, Formatter};
 use std::{
     // Add this line to import the Display trait
     fmt::{Debug, Display},
@@ -171,4 +170,12 @@ pub enum StfError {
     BlockExecutionError(String),
     #[error("Storage error: {0}")]
     Storage(#[from] StorageError),
+}
+
+#[derive(Debug, Clone, Error)]
+pub enum ConsensusError {
+    #[error("Failed to import block: {0}")]
+    ImportBlockError(String),
+    #[error("Stf error: {0}")]
+    Stf(#[from] StfError),
 }

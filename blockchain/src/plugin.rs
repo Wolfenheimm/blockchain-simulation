@@ -1,5 +1,5 @@
+use crate::state::State;
 use crate::types::StorageError;
-use crate::{state::State, types};
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
 

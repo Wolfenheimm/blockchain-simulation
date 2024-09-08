@@ -1,4 +1,5 @@
 use crate::stf::Stf;
+use crate::types::ConsensusError;
 use crate::{extrinsics, stf, types};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -30,7 +31,11 @@ where
     /// The consensus protocol should assume the highest block is the best block (i.e. the canonical chain).
     /// Since this is a simplified example of a consensus protocol, when a reorg happens, we can call into the [`Nodes`]
     /// to request every block number we don't have.
-    fn import_block(&self, block: &mut Block<T>, stf: &mut stf::SimpleStf<T>);
+    fn import_block(
+        &self,
+        block: &mut Block<T>,
+        stf: &mut stf::SimpleStf<T>,
+    ) -> Result<(), ConsensusError>;
 }
 
 #[derive(Debug)]
@@ -46,7 +51,11 @@ impl<T: Config, N: Nodes<T>> ConsensusT<T> for Consensus<T, N>
 where
     T: Serialize + DeserializeOwned + Debug,
 {
-    fn import_block(&self, block: &mut Block<T>, stf: &mut stf::SimpleStf<T>) {
+    fn import_block(
+        &self,
+        block: &mut Block<T>,
+        stf: &mut stf::SimpleStf<T>,
+    ) -> Result<(), ConsensusError> {
         if block.header.block_height == T::HeightType::from(0) {
             // Genesis block
             block.extrinsics.push(extrinsics::SignedTransaction::new(
@@ -61,7 +70,8 @@ where
                     balance: T::Funds::from(1000),
                 },
             ));
-            stf.execute_block(block.clone());
+            stf.execute_block(block.clone())
+                .map_err(ConsensusError::Stf)?;
         } else {
             block.header.parent_hash = stf
                 .get_block_hash(block.header.block_height.clone() - T::HeightType::from(1))
@@ -69,7 +79,8 @@ where
             match stf.validate_block(block.clone()) {
                 Ok(_) => {
                     // Execute the block
-                    stf.execute_block(block.clone());
+                    stf.execute_block(block.clone())
+                        .map_err(ConsensusError::Stf)?;
                 }
                 Err(e) => {
                     println!("Error: {}", e);
@@ -85,6 +96,8 @@ where
                 stf.get_account(T::Hash::from([1; 32]))
             );
         }
+
+        Ok(())
     }
 }
 
