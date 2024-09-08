@@ -149,6 +149,8 @@ pub enum StorageError {
     SerializationError(String),
     DeserializationError(String),
     KeyCreationError(String),
+    KeyNotFound(String),
+    CreateFullKeyError(String),
     DataNotFound,
 }
 
@@ -158,6 +160,10 @@ impl Display for StorageError {
             StorageError::SerializationError(msg) => write!(f, "Serialization Error: {}", msg),
             StorageError::DeserializationError(msg) => write!(f, "Deserialization Error: {}", msg),
             StorageError::KeyCreationError(msg) => write!(f, "Key Creation Error: {}", msg),
+            StorageError::KeyNotFound(msg) => write!(f, "Key not found for: {}", msg),
+            StorageError::CreateFullKeyError(msg) => {
+                write!(f, "Could not create Full Key: {}", msg)
+            }
             StorageError::DataNotFound => write!(f, "Data Not Found"),
         }
     }

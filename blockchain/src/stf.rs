@@ -24,8 +24,8 @@ where
     fn validate_block(&mut self, block: Block<T>) -> Result<(), Box<dyn Error>>;
     fn execute_block(&mut self, block: Block<T>);
     fn validate_account(&mut self, account: Account<T>) -> Result<(), Box<dyn Error>>;
-    fn get_block_hash(&self, block_height: T::HeightType) -> Option<T::Hash>;
-    fn get_account(&self, account_id: T::Hash) -> Option<Account<T>>;
+    fn get_block_hash(&self, block_height: T::HeightType) -> Result<T::Hash, StorageError>;
+    fn get_account(&self, account_id: T::Hash) -> Result<Account<T>, StorageError>;
 }
 
 pub struct SimpleStf<T: Config>
@@ -54,22 +54,22 @@ where
 {
     fn validate_block(&mut self, block: Block<T>) -> Result<(), Box<dyn Error>> {
         // Ensure the block is not already in the state
-        let block_exists: Option<()> = self
+        let block_exists: Result<(), StorageError> = self
             .plugin
             .get(StoragePrefix::Block, block.header.block_height.clone());
         // If exists... big no-no
-        if block_exists.is_some() {
+        if block_exists.is_ok() {
             return Err("Block already exists in the state.".into());
         }
 
         // Check if the parent block exists from State
-        let parent_block_key: Option<T::Hash> = self.plugin.get(
+        let parent_block_key: Result<T::Hash, StorageError> = self.plugin.get(
             StoragePrefix::Block,
             block.header.block_height - T::HeightType::from(1),
         );
 
         // If parent block does not exist... big no-no
-        if parent_block_key.is_none() {
+        if parent_block_key.is_err() {
             return Err("Parent block does not exist.".into());
         }
 
@@ -101,20 +101,20 @@ where
                     amount, from, to, ..
                 } => {
                     // Get the sender and receiver accounts
-                    let from_account: Option<Account<T>> =
+                    let from_account: Result<Account<T>, StorageError> =
                         self.plugin.get(StoragePrefix::Account, from);
-                    let to_account: Option<Account<T>> =
+                    let to_account: Result<Account<T>, StorageError> =
                         self.plugin.get(StoragePrefix::Account, to);
 
                     // TODO: explore the use of ? for these Options -> TransactionError enum made for this
 
                     // Check if the accounts exist, if they don't, skip the transaction
-                    if from_account.is_none() {
+                    if from_account.is_err() {
                         eprintln!("Sender account does not exist.");
                         continue;
                     }
 
-                    if to_account.is_none() {
+                    if to_account.is_err() {
                         eprintln!("Receiver account does not exist.");
                         continue;
                     }
@@ -151,11 +151,11 @@ where
                 }
                 TransactionType::Mint { amount, to, .. } => {
                     // Get the receiver's account
-                    let to_account: Option<Account<T>> =
+                    let to_account: Result<Account<T>, StorageError> =
                         self.plugin.get(StoragePrefix::Account, to);
 
                     // Check if the account exists, if it doesn't, skip the transaction
-                    if to_account.is_none() {
+                    if to_account.is_err() {
                         eprintln!("Receiver account does not exist.");
                         continue;
                     }
@@ -174,11 +174,11 @@ where
                 }
                 TransactionType::Burn { amount, from, .. } => {
                     // Get the sender's account
-                    let from_account: Option<Account<T>> =
+                    let from_account: Result<Account<T>, StorageError> =
                         self.plugin.get(StoragePrefix::Account, from);
 
                     // Check if the account exists, if it doesn't, skip the transaction
-                    if from_account.is_none() {
+                    if from_account.is_err() {
                         eprintln!("Receiver account does not exist.");
                         continue;
                     }
@@ -242,21 +242,21 @@ where
 
     fn validate_account(&mut self, account: Account<T>) -> Result<(), Box<dyn Error>> {
         // Check if the account is not already in the state
-        let account_exists: Option<Account<T>> =
+        let account_exists: Result<Account<T>, StorageError> =
             self.plugin.get(StoragePrefix::Account, account.account_id);
         // If the account exists... big no-no
-        if account_exists.is_some() {
+        if account_exists.is_ok() {
             return Err("Account already exists in the state.".into());
         }
 
         Ok(())
     }
 
-    fn get_block_hash(&self, block_height: T::HeightType) -> Option<T::Hash> {
+    fn get_block_hash(&self, block_height: T::HeightType) -> Result<T::Hash, StorageError> {
         self.plugin.get(StoragePrefix::Block, block_height)
     }
 
-    fn get_account(&self, account_id: T::Hash) -> Option<Account<T>> {
+    fn get_account(&self, account_id: T::Hash) -> Result<Account<T>, StorageError> {
         self.plugin.get(StoragePrefix::Account, account_id)
     }
 }

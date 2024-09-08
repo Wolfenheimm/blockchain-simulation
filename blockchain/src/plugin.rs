@@ -1,10 +1,12 @@
-use crate::state::State;
+use crate::types::StorageError;
+use crate::{state::State, types};
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
 
 pub trait StoragePlugin<P, K, V> {
     fn set(&mut self, prefix: P, key: K, value: &V);
-    fn get(&self, prefix: P, key: K) -> Option<V>;
+    fn get(&self, prefix: P, key: K) -> Result<V, StorageError>;
+    fn create_full_key(prefix: P, key: K) -> Result<Vec<u8>, StorageError>;
 }
 
 #[derive(Serialize)]
@@ -35,47 +37,45 @@ where
     V: Serialize + DeserializeOwned + Debug,
 {
     fn set(&mut self, prefix: P, key: K, value: &V) {
-        let encoded_prefix = bincode::serialize(&prefix).unwrap();
-        let encoded_key = bincode::serialize(&key).unwrap();
-        let full_key = encoded_prefix
-            .into_iter()
-            .chain(encoded_key.into_iter())
-            .collect();
+        let full_key = <Self as StoragePlugin<P, K, V>>::create_full_key(prefix, key).unwrap();
+
         let encoded_value = bincode::serialize(value).unwrap();
         self.state.insert(full_key, encoded_value);
     }
 
-    fn get(&self, prefix: P, key: K) -> Option<V> {
-        let encoded_prefix = match bincode::serialize(&prefix) {
-            Ok(data) => data,
-            Err(e) => {
-                eprintln!("Failed to serialize prefix: {}", e);
-                return None;
-            }
-        };
+    fn get(&self, prefix: P, key: K) -> Result<V, StorageError> {
+        let full_key =
+            <Self as StoragePlugin<P, K, V>>::create_full_key(prefix, key).map_err(|e| {
+                StorageError::KeyCreationError(format!("Failed to create full key: {:?}", e))
+            })?;
 
-        let encoded_key = match bincode::serialize(&key) {
-            Ok(data) => data,
-            Err(e) => {
-                eprintln!("Failed to serialize key: {}", e);
-                return None;
-            }
-        };
+        let encoded_data = self
+            .state
+            .get(full_key.clone())
+            .ok_or_else(|| StorageError::KeyNotFound(format!("Key not found: {:?}", full_key)))?;
+
+        bincode::deserialize(encoded_data).map_err(|e| {
+            eprintln!("Failed to deserialize data: {}", e);
+            StorageError::DeserializationError(e.to_string())
+        })
+    }
+
+    fn create_full_key(prefix: P, key: K) -> Result<Vec<u8>, StorageError> {
+        let encoded_prefix = bincode::serialize(&prefix).map_err(|e| {
+            eprintln!("Failed to serialize prefix: {}", e);
+            StorageError::SerializationError("Failed to serialize prefix".to_string())
+        })?;
+
+        let encoded_key = bincode::serialize(&key).map_err(|e| {
+            eprintln!("Failed to serialize key: {}", e);
+            StorageError::SerializationError("Failed to serialize key".to_string())
+        })?;
 
         let full_key = encoded_prefix
             .into_iter()
             .chain(encoded_key.into_iter())
             .collect();
 
-        match self.state.get(full_key) {
-            Some(encoded_data) => match bincode::deserialize(&encoded_data[..]) {
-                Ok(decoded) => Some(decoded),
-                Err(e) => {
-                    eprintln!("Failed to deserialize data: {}", e);
-                    None
-                }
-            },
-            None => None,
-        }
+        Ok(full_key)
     }
 }
