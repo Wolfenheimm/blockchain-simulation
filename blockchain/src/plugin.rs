@@ -4,7 +4,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
 
 pub trait StoragePlugin<P, K, V> {
-    fn set(&mut self, prefix: P, key: K, value: &V);
+    fn set(&mut self, prefix: P, key: K, value: &V) -> Result<(), StorageError>;
     fn get(&self, prefix: P, key: K) -> Result<V, StorageError>;
     fn create_full_key(prefix: P, key: K) -> Result<Vec<u8>, StorageError>;
 }
@@ -36,23 +36,25 @@ where
     K: Serialize + Debug,
     V: Serialize + DeserializeOwned + Debug,
 {
-    fn set(&mut self, prefix: P, key: K, value: &V) {
+    fn set(&mut self, prefix: P, key: K, value: &V) -> Result<(), StorageError> {
         let full_key = <Self as StoragePlugin<P, K, V>>::create_full_key(prefix, key).unwrap();
 
         let encoded_value = bincode::serialize(value).unwrap();
-        self.state.insert(full_key, encoded_value);
+        self.state
+            .insert(full_key, encoded_value)
+            .map_err(|e| StorageError::DataInsertionError(format!("{:?}", e)))?;
+
+        Ok(())
     }
 
     fn get(&self, prefix: P, key: K) -> Result<V, StorageError> {
-        let full_key =
-            <Self as StoragePlugin<P, K, V>>::create_full_key(prefix, key).map_err(|e| {
-                StorageError::KeyCreationError(format!("Failed to create full key: {:?}", e))
-            })?;
+        let full_key = <Self as StoragePlugin<P, K, V>>::create_full_key(prefix, key)
+            .map_err(|e| StorageError::KeyCreationError(format!("{:?}", e)))?;
 
         let encoded_data = self
             .state
             .get(full_key.clone())
-            .ok_or_else(|| StorageError::KeyNotFound(format!("Key not found: {:?}", full_key)))?;
+            .ok_or_else(|| StorageError::KeyNotFound(format!("{:?}", full_key)))?;
 
         bincode::deserialize(encoded_data).map_err(|e| {
             eprintln!("Failed to deserialize data: {}", e);

@@ -7,6 +7,7 @@ use std::{
     fmt::{Debug, Display},
     ops::{AddAssign, Sub},
 };
+use thiserror::Error;
 
 pub struct MaxBlockHeight;
 pub struct FundSum;
@@ -144,27 +145,30 @@ pub enum TransactionError<T: Config> {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
 pub enum StorageError {
+    #[error("Serialization Error: {0}")]
     SerializationError(String),
+    #[error("Deserialization Error: {0}")]
     DeserializationError(String),
+    #[error("Key Creation Error: {0}")]
     KeyCreationError(String),
+    #[error("Key not found for: {0}")]
     KeyNotFound(String),
+    #[error("Could not create Full Key: {0}")]
     CreateFullKeyError(String),
-    DataNotFound,
+    #[error("Data Insertion Error: {0}")]
+    DataInsertionError(String),
+    #[error("Storage operation failed: {0}")]
+    OperationFailed(String),
+    #[error("Data Not Found: {0}")]
+    DataNotFound(String),
 }
 
-impl Display for StorageError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            StorageError::SerializationError(msg) => write!(f, "Serialization Error: {}", msg),
-            StorageError::DeserializationError(msg) => write!(f, "Deserialization Error: {}", msg),
-            StorageError::KeyCreationError(msg) => write!(f, "Key Creation Error: {}", msg),
-            StorageError::KeyNotFound(msg) => write!(f, "Key not found for: {}", msg),
-            StorageError::CreateFullKeyError(msg) => {
-                write!(f, "Could not create Full Key: {}", msg)
-            }
-            StorageError::DataNotFound => write!(f, "Data Not Found"),
-        }
-    }
+#[derive(Debug, Clone, Error)]
+pub enum StfError {
+    #[error("Failed to execute block: {0}")]
+    BlockExecutionError(String),
+    #[error("Storage error: {0}")]
+    Storage(#[from] StorageError),
 }

@@ -1,7 +1,7 @@
 use crate::account::Account;
 use crate::block::{Block, BlockTrait};
 use crate::plugin::{Plugin, StoragePlugin};
-use crate::types::{StorageError, TransactionType};
+use crate::types::{StfError, StorageError, TransactionType};
 use crate::Config;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -22,7 +22,7 @@ where
     T: Serialize + DeserializeOwned + Debug,
 {
     fn validate_block(&mut self, block: Block<T>) -> Result<(), Box<dyn Error>>;
-    fn execute_block(&mut self, block: Block<T>);
+    fn execute_block(&mut self, block: Block<T>) -> Result<(), StfError>;
     fn validate_account(&mut self, account: Account<T>) -> Result<(), Box<dyn Error>>;
     fn get_block_hash(&self, block_height: T::HeightType) -> Result<T::Hash, StorageError>;
     fn get_account(&self, account_id: T::Hash) -> Result<Account<T>, StorageError>;
@@ -83,16 +83,18 @@ where
         Ok(())
     }
 
-    fn execute_block(&mut self, block: Block<T>) {
+    fn execute_block(&mut self, block: Block<T>) -> Result<(), StfError> {
         // Add the block to the state. B# -> BH & BH -> B
         println!("BLOCK HEIGHT: {}", &block.header.block_height);
         let block_hash = block.hash();
-        self.plugin.set(
-            StoragePrefix::Block,
-            &block.header.block_height,
-            &block_hash,
-        );
-        self.plugin.set(StoragePrefix::Block, &block_hash, &block);
+        self.plugin
+            .set(
+                StoragePrefix::Block,
+                &block.header.block_height,
+                &block_hash,
+            )
+            .map_err(StfError::Storage)?;
+        self.plugin.set(StoragePrefix::Block, &block_hash, &block)?;
 
         for transaction in block.extrinsics() {
             // Apply the transaction, then update state
@@ -105,8 +107,6 @@ where
                         self.plugin.get(StoragePrefix::Account, from);
                     let to_account: Result<Account<T>, StorageError> =
                         self.plugin.get(StoragePrefix::Account, to);
-
-                    // TODO: explore the use of ? for these Options -> TransactionError enum made for this
 
                     // Check if the accounts exist, if they don't, skip the transaction
                     if from_account.is_err() {
@@ -131,11 +131,13 @@ where
                         balance: from_account.clone().unwrap().balance - amount,
                     };
                     // Push
-                    self.plugin.set(
-                        StoragePrefix::Account,
-                        &from_account.unwrap().account_id,
-                        &updated_from_account,
-                    );
+                    self.plugin
+                        .set(
+                            StoragePrefix::Account,
+                            &from_account.unwrap().account_id,
+                            &updated_from_account,
+                        )
+                        .map_err(StfError::Storage)?;
 
                     // Update the receiver's account
                     let updated_to_account: Account<T> = Account {
@@ -143,11 +145,13 @@ where
                         balance: to_account.clone().unwrap().balance + amount,
                     };
                     // Push
-                    self.plugin.set(
-                        StoragePrefix::Account,
-                        &to_account.unwrap().account_id,
-                        &updated_to_account,
-                    );
+                    self.plugin
+                        .set(
+                            StoragePrefix::Account,
+                            &to_account.unwrap().account_id,
+                            &updated_to_account,
+                        )
+                        .map_err(StfError::Storage)?;
                 }
                 TransactionType::Mint { amount, to, .. } => {
                     // Get the receiver's account
@@ -166,11 +170,13 @@ where
                         balance: to_account.clone().unwrap().balance + amount,
                     };
                     // Push
-                    self.plugin.set(
-                        StoragePrefix::Account,
-                        to_account.unwrap().account_id,
-                        &updated_to_account,
-                    );
+                    self.plugin
+                        .set(
+                            StoragePrefix::Account,
+                            to_account.unwrap().account_id,
+                            &updated_to_account,
+                        )
+                        .map_err(StfError::Storage)?;
                 }
                 TransactionType::Burn { amount, from, .. } => {
                     // Get the sender's account
@@ -196,11 +202,13 @@ where
                         balance: from_account.clone().unwrap().balance - amount,
                     };
                     // Push
-                    self.plugin.set(
-                        StoragePrefix::Account,
-                        from_account.unwrap().account_id,
-                        &updated_from_account,
-                    );
+                    self.plugin
+                        .set(
+                            StoragePrefix::Account,
+                            from_account.unwrap().account_id,
+                            &updated_from_account,
+                        )
+                        .map_err(StfError::Storage)?;
                 }
                 TransactionType::AccountCreation {
                     account_id,
@@ -217,11 +225,9 @@ where
                     match self.validate_account(account.clone()) {
                         Ok(_) => {
                             // Add the account to the state
-                            self.plugin.set(
-                                StoragePrefix::Account,
-                                account.clone().account_id,
-                                &account,
-                            );
+                            self.plugin
+                                .set(StoragePrefix::Account, account.clone().account_id, &account)
+                                .map_err(StfError::Storage)?;
                         }
                         Err(e) => {
                             eprintln!("Error: {}", e);
@@ -236,8 +242,9 @@ where
                 StoragePrefix::Extrinsic,
                 &block.header.block_height,
                 transaction,
-            );
+            )?;
         }
+        Ok(())
     }
 
     fn validate_account(&mut self, account: Account<T>) -> Result<(), Box<dyn Error>> {

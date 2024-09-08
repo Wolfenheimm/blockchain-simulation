@@ -1,6 +1,8 @@
 use serde::Serialize;
 use std::collections::HashMap;
 
+use crate::types::StorageError;
+
 #[derive(Serialize)]
 pub struct State {
     data: HashMap<Vec<u8>, Vec<u8>>,
@@ -11,8 +13,9 @@ impl State {
         self.data.get(&key)
     }
 
-    pub fn insert(&mut self, key: Vec<u8>, value: Vec<u8>) {
+    pub fn insert(&mut self, key: Vec<u8>, value: Vec<u8>) -> Result<(), StorageError> {
         self.data.insert(key, value);
+        Ok(())
     }
 
     pub fn new() -> Self {
