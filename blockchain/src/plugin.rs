@@ -81,3 +81,26 @@ where
         Ok(full_key)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod create_full_key {
+        mod success {}
+
+        mod failure {}
+    }
+
+    mod get_data {
+        mod success {}
+
+        mod failure {}
+    }
+
+    mod set_data {
+        mod success {}
+
+        mod failure {}
+    }
+}
