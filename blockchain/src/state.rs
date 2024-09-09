@@ -43,7 +43,6 @@ impl State {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     mod new_state {
         mod success {
@@ -53,6 +52,16 @@ mod tests {
             fn test_new_state() {
                 let state = State::new();
                 assert!(state.data.is_empty());
+            }
+        }
+
+        mod failure {
+            use crate::state::State;
+
+            #[test]
+            fn test_new_state() {
+                let state = State::new();
+                assert!(!state.data.contains_key(&vec![1, 2, 3]));
             }
         }
     }
@@ -69,6 +78,20 @@ mod tests {
 
                 assert!(state.insert(key.clone(), value.clone()).is_ok());
                 assert_eq!(state.get(key), Some(&value));
+            }
+        }
+
+        mod failure {
+            use crate::state::State;
+
+            #[test]
+            fn test_insert_and_get() {
+                let mut state = State::new();
+                let key = vec![1, 2, 3];
+                let value = vec![4, 5, 6];
+
+                assert!(state.insert(key.clone(), value.clone()).is_ok());
+                assert_ne!(state.get(vec![1, 2, 4]), Some(&value));
             }
         }
     }
@@ -89,6 +112,22 @@ mod tests {
                 assert_eq!(state.get(key), Some(&value2));
             }
         }
+
+        mod failure {
+            use crate::state::State;
+
+            #[test]
+            fn test_insert_overwrite() {
+                let mut state = State::new();
+                let key = vec![1, 2, 3];
+                let value1 = vec![4, 5, 6];
+                let value2 = vec![7, 8, 9];
+
+                assert!(state.insert(key.clone(), value1.clone()).is_ok());
+                assert!(state.insert(key.clone(), value2.clone()).is_ok());
+                assert_ne!(state.get(key), Some(&value1));
+            }
+        }
     }
 
     mod get_nonexistent {
@@ -101,6 +140,20 @@ mod tests {
                 let key = vec![1, 2, 3];
 
                 assert_eq!(state.get(key), None);
+            }
+        }
+
+        mod failure {
+            use crate::state::State;
+
+            #[test]
+            fn test_get_nonexistent() {
+                let mut state = State::new();
+                let key = vec![1, 2, 3];
+                let value = vec![4, 5, 6];
+
+                assert!(state.insert(key.clone(), value.clone()).is_ok());
+                assert_ne!(state.get(vec![1, 2, 4]), Some(&value));
             }
         }
     }
@@ -124,6 +177,34 @@ mod tests {
 
                 for (key, value) in pairs.iter() {
                     assert_eq!(state.get(key.clone()), Some(value));
+                }
+            }
+        }
+
+        mod failure {
+            use crate::state::State;
+
+            #[test]
+            fn test_multiple_inserts() {
+                let mut state = State::new();
+                let pairs = vec![
+                    (vec![1], vec![10]),
+                    (vec![2], vec![20]),
+                    (vec![3], vec![30]),
+                ];
+
+                let bad_pairs = vec![
+                    (vec![4], vec![10]),
+                    (vec![5], vec![20]),
+                    (vec![6], vec![30]),
+                ];
+
+                for (key, value) in pairs.iter() {
+                    assert!(state.insert(key.clone(), value.clone()).is_ok());
+                }
+
+                for (key, value) in bad_pairs.iter() {
+                    assert_ne!(state.get(key.clone()), Some(value));
                 }
             }
         }

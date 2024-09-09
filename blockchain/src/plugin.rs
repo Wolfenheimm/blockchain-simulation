@@ -84,10 +84,50 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     mod create_full_key {
-        mod success {}
+        mod success {
+            use crate::{
+                plugin::{Plugin, StoragePlugin},
+                types::StorageError,
+            };
+
+            #[test]
+            fn test_create_full_key() {
+                let prefix = vec![1, 2, 3];
+                let key = vec![1, 2, 3];
+
+                let full_key = <Plugin as StoragePlugin<Vec<u8>, Vec<u8>, ()>>::create_full_key(
+                    prefix.clone(),
+                    key.clone(),
+                )
+                .map_err(|e| StorageError::KeyCreationError(format!("{:?}", e)))
+                .unwrap();
+
+                // Serialize prefix and key separately using bincode
+                let encoded_prefix = bincode::serialize(&prefix).unwrap();
+                let encoded_key = bincode::serialize(&key).unwrap();
+
+                // Create the expected full key
+                let expected_full_key: Vec<u8> = encoded_prefix
+                    .clone()
+                    .into_iter()
+                    .chain(encoded_key.into_iter())
+                    .collect();
+
+                // Check if full_key matches the expected full key
+                assert_eq!(full_key, expected_full_key);
+
+                // Deserialize and check the prefix part
+                let deserialized_prefix: Vec<u8> =
+                    bincode::deserialize(&full_key[..encoded_prefix.len()]).unwrap();
+                assert_eq!(deserialized_prefix, prefix);
+
+                // Deserialize and check the key part
+                let deserialized_key: Vec<u8> =
+                    bincode::deserialize(&full_key[encoded_prefix.len()..]).unwrap();
+                assert_eq!(deserialized_key, key);
+            }
+        }
 
         mod failure {}
     }
