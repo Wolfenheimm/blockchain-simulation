@@ -132,3 +132,253 @@ where
         self.transaction_pool.clone()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use serde::Deserialize;
+    use types::{Height, MaxBlockHeight, MaxBlockWeight};
+
+    use super::*;
+    use crate::stf::SimpleStf;
+    use crate::types::TransactionType;
+    use std::sync::{Arc, Mutex};
+
+    // Mock implementation of Config trait for testing
+    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+    struct MockConfig;
+    impl Config for MockConfig {
+        type MaxBlockWeight = MaxBlockWeight;
+        type MaxBlockHeight = MaxBlockHeight;
+        type WeightType = u64;
+        type HeightType = Height;
+        type Hash = [u8; 32];
+        type Funds = u128;
+    }
+
+    mod test_import_block {
+        use super::*;
+
+        mod success {
+            use crate::{
+                block::{self, BlockTrait, Header},
+                One, Zero,
+            };
+
+            use super::*;
+
+            #[test]
+            fn test_import_genesis_block() {
+                let block_height = Height::zero();
+
+                let node = Arc::new(Mutex::new(Node {
+                    transaction_pool: vec![].into(),
+                }));
+
+                let consensus = Arc::new(Consensus {
+                    node_network: Arc::clone(&node), // Here, the node itself serves as the node network
+                    phantom: std::marker::PhantomData::<MockConfig>,
+                });
+
+                let mut stf = SimpleStf::new(crate::plugin::Plugin::new());
+                let mut genesis_block = block::Block {
+                    header: Header {
+                        block_height,
+                        parent_hash: [0; 32],
+                        state_root: [0; 32],
+                        extrinsics_root: [0; 32],
+                        block_weight: 0,
+                    },
+                    extrinsics: Vec::new(),
+                };
+
+                assert!(consensus.import_block(&mut genesis_block, &mut stf).is_ok());
+
+                // Because the genesis block is hardcoded to create accounts we will use these
+                // to test functionality
+                assert!(stf.get_account([0; 32]).is_ok());
+                assert!(stf.get_account([1; 32]).is_ok());
+            }
+
+            #[test]
+            fn test_import_regular_block() {
+                let mut block_height = Height::zero();
+
+                let node = Arc::new(Mutex::new(Node {
+                    transaction_pool: vec![].into(),
+                }));
+
+                let consensus = Arc::new(Consensus {
+                    node_network: Arc::clone(&node), // Here, the node itself serves as the node network
+                    phantom: std::marker::PhantomData::<MockConfig>,
+                });
+                let mut stf = SimpleStf::new(crate::plugin::Plugin::new());
+
+                // Import genesis block first
+                let mut genesis_block = block::Block {
+                    header: Header {
+                        block_height,
+                        parent_hash: [0; 32],
+                        state_root: [0; 32],
+                        extrinsics_root: [0; 32],
+                        block_weight: 0,
+                    },
+                    extrinsics: Vec::new(),
+                };
+                consensus
+                    .import_block(&mut genesis_block, &mut stf)
+                    .unwrap();
+
+                // Now import a regular block
+                block_height += Height::one();
+                let mut regular_block = block::Block {
+                    header: Header {
+                        block_height,
+                        parent_hash: genesis_block.hash(),
+                        state_root: [0; 32],
+                        extrinsics_root: [0; 32],
+                        block_weight: 0,
+                    },
+                    extrinsics: Vec::new(),
+                };
+                assert!(consensus.import_block(&mut regular_block, &mut stf).is_ok());
+            }
+        }
+
+        mod failure {
+            use crate::{
+                block::{self, Header},
+                Zero,
+            };
+
+            use super::*;
+
+            #[test]
+            fn test_import_block_with_invalid_parent() {
+                let block_height = Height::zero();
+
+                let node = Arc::new(Mutex::new(Node {
+                    transaction_pool: vec![].into(),
+                }));
+
+                let consensus = Arc::new(Consensus {
+                    node_network: Arc::clone(&node), // Here, the node itself serves as the node network
+                    phantom: std::marker::PhantomData::<MockConfig>,
+                });
+                let mut stf = SimpleStf::new(crate::plugin::Plugin::new());
+
+                // Try to import a block with an invalid parent hash
+                let mut invalid_block = block::Block {
+                    header: Header {
+                        block_height,
+                        parent_hash: [0; 32],
+                        state_root: [0; 32],
+                        extrinsics_root: [0; 32],
+                        block_weight: 0,
+                    },
+                    extrinsics: Vec::new(),
+                };
+                assert!(consensus
+                    .import_block(&mut invalid_block, &mut stf)
+                    .is_err());
+            }
+        }
+    }
+
+    mod test_submit_extrinsic {
+        use super::*;
+
+        mod success {
+            use super::*;
+
+            #[test]
+            fn test_submit_single_extrinsic() {
+                let mut node = Node::<MockConfig> {
+                    transaction_pool: VecDeque::new(),
+                };
+
+                let transaction = SignedTransaction::new(TransactionType::Transfer {
+                    from: [0; 32],
+                    to: [1; 32],
+                    amount: 100,
+                });
+
+                node.submit_extrinsic(transaction.clone());
+
+                assert_eq!(node.transaction_pool.len(), 1);
+                assert_eq!(node.transaction_pool[0], transaction);
+            }
+
+            #[test]
+            fn test_submit_multiple_extrinsics() {
+                let mut node = Node::<MockConfig> {
+                    transaction_pool: VecDeque::new(),
+                };
+
+                let transaction1 = SignedTransaction::new(TransactionType::Transfer {
+                    from: [0; 32],
+                    to: [1; 32],
+                    amount: 100,
+                });
+                let transaction2 = SignedTransaction::new(TransactionType::Transfer {
+                    from: [1; 32],
+                    to: [0; 32],
+                    amount: 50,
+                });
+
+                node.submit_extrinsic(transaction1.clone());
+                node.submit_extrinsic(transaction2.clone());
+
+                assert_eq!(node.transaction_pool.len(), 2);
+                assert_eq!(node.transaction_pool[0], transaction2);
+                assert_eq!(node.transaction_pool[1], transaction1);
+            }
+        }
+
+        mod failure {
+            // There are no failure cases for submit_extrinsic as it always succeeds
+        }
+    }
+
+    mod test_pending_extrinsics {
+        use super::*;
+
+        mod success {
+            use super::*;
+
+            #[test]
+            fn test_pending_extrinsics_empty() {
+                let node = Node::<MockConfig> {
+                    transaction_pool: VecDeque::new(),
+                };
+
+                assert!(node.pending_extrinsics().is_empty());
+            }
+
+            #[test]
+            fn test_pending_extrinsics_with_transactions() {
+                let mut node = Node::<MockConfig> {
+                    transaction_pool: VecDeque::new(),
+                };
+
+                let transaction1 = SignedTransaction::new(TransactionType::Transfer {
+                    from: [0; 32],
+                    to: [1; 32],
+                    amount: 100,
+                });
+                let transaction2 = SignedTransaction::new(TransactionType::Transfer {
+                    from: [1; 32],
+                    to: [0; 32],
+                    amount: 50,
+                });
+
+                node.submit_extrinsic(transaction1.clone());
+                node.submit_extrinsic(transaction2.clone());
+
+                let pending = node.pending_extrinsics();
+                assert_eq!(pending.len(), 2);
+                assert_eq!(pending[0], transaction2);
+                assert_eq!(pending[1], transaction1);
+            }
+        }
+    }
+}

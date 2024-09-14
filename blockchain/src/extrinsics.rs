@@ -1,7 +1,7 @@
 use crate::{types::TransactionType, Config};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct SignedTransaction<T: Config> {
     pub transaction_type: TransactionType<T>,
 }

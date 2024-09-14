@@ -134,7 +134,7 @@ where
                     self.plugin
                         .set(
                             StoragePrefix::Account,
-                            &from_account.unwrap().account_id,
+                            &from_account.clone().unwrap().account_id,
                             &updated_from_account,
                         )
                         .map_err(StfError::Storage)?;
@@ -144,6 +144,7 @@ where
                         account_id: to_account.clone().unwrap().account_id,
                         balance: to_account.clone().unwrap().balance + amount,
                     };
+
                     // Push
                     self.plugin
                         .set(
@@ -265,5 +266,391 @@ where
 
     fn get_account(&self, account_id: T::Hash) -> Result<Account<T>, StorageError> {
         self.plugin.get(StoragePrefix::Account, account_id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::account::Account;
+    use crate::block::Block;
+    use crate::plugin::Plugin;
+    use crate::types::{Height, MaxBlockHeight, MaxBlockWeight, StfError};
+
+    // Mock implementation of Config trait for testing
+    #[derive(Serialize, Deserialize, Debug)]
+    struct MockConfig;
+    impl Config for MockConfig {
+        type MaxBlockWeight = MaxBlockWeight;
+        type MaxBlockHeight = MaxBlockHeight;
+        type WeightType = u64;
+        type HeightType = Height;
+        type Hash = [u8; 32];
+        type Funds = u128;
+    }
+
+    mod validate_block {
+        use super::*;
+
+        mod success {
+            use crate::block::Header;
+
+            use super::*;
+
+            #[test]
+            fn test_validate_new_block() {
+                let plugin = Plugin::new();
+                let mut stf = SimpleStf::<MockConfig>::new(plugin);
+
+                // Create a mock parent block and add it to the state
+                let parent_block: Block<MockConfig> = Block {
+                    header: Header {
+                        block_height: Height::from(1),
+                        parent_hash: [0; 32],
+                        state_root: [0; 32],
+                        extrinsics_root: [0; 32],
+                        block_weight: 0,
+                    },
+                    extrinsics: Vec::new(),
+                };
+                stf.plugin
+                    .set(StoragePrefix::Block, &1u64, &parent_block.hash())
+                    .unwrap();
+
+                // Create a new block
+                let new_block = Block {
+                    header: Header {
+                        block_height: Height::from(2),
+                        parent_hash: parent_block.hash(),
+                        state_root: [0; 32],
+                        extrinsics_root: [0; 32],
+                        block_weight: 0,
+                    },
+                    extrinsics: Vec::new(),
+                };
+
+                assert!(stf.validate_block(new_block).is_ok());
+            }
+        }
+
+        mod failure {
+            use crate::block::Header;
+
+            use super::*;
+
+            #[test]
+            fn test_validate_existing_block() {
+                let plugin = Plugin::new();
+                let mut stf = SimpleStf::<MockConfig>::new(plugin);
+
+                // Add a block to the state
+                let block = Block {
+                    header: Header {
+                        block_height: Height::from(1),
+                        parent_hash: [0; 32],
+                        state_root: [0; 32],
+                        extrinsics_root: [0; 32],
+                        block_weight: 0,
+                    },
+                    extrinsics: Vec::new(),
+                };
+                stf.plugin
+                    .set(StoragePrefix::Block, &1u64, &block.hash())
+                    .unwrap();
+
+                assert!(stf.validate_block(block).is_err());
+            }
+
+            #[test]
+            fn test_validate_block_with_missing_parent() {
+                let plugin = Plugin::new();
+                let mut stf = SimpleStf::<MockConfig>::new(plugin);
+
+                // Create a block with a non-existent parent
+                let block = Block {
+                    header: Header {
+                        block_height: Height::from(1),
+                        parent_hash: [0; 32],
+                        state_root: [0; 32],
+                        extrinsics_root: [0; 32],
+                        block_weight: 0,
+                    },
+                    extrinsics: Vec::new(),
+                };
+
+                assert!(stf.validate_block(block).is_err());
+            }
+        }
+    }
+
+    mod execute_block {
+        use super::*;
+
+        mod success {
+
+            use crate::{
+                block::Header,
+                extrinsics::{self, SignedTransaction},
+                types,
+            };
+
+            use super::*;
+
+            #[test]
+            fn test_execute_block_with_transfer() {
+                let plugin = Plugin::new();
+                let mut stf = SimpleStf::<MockConfig>::new(plugin);
+
+                // Create a block with a transfer transaction
+                let transaction =
+                    extrinsics::SignedTransaction::new(types::TransactionType::Transfer {
+                        from: [0; 32],
+                        to: [1; 32],
+                        amount: 30,
+                    });
+                let acc_alice: SignedTransaction<MockConfig> =
+                    extrinsics::SignedTransaction::new(types::TransactionType::AccountCreation {
+                        account_id: [0; 32],
+                        balance: 100,
+                    });
+
+                let acc_dave: SignedTransaction<MockConfig> =
+                    extrinsics::SignedTransaction::new(types::TransactionType::AccountCreation {
+                        account_id: [1; 32],
+                        balance: 50,
+                    });
+
+                let mut block = Block {
+                    header: Header {
+                        block_height: Height::from(1),
+                        parent_hash: [0; 32],
+                        state_root: [0; 32],
+                        extrinsics_root: [0; 32],
+                        block_weight: 0,
+                    },
+                    extrinsics: Vec::new(),
+                };
+
+                block.add_extrinsic(acc_alice).unwrap();
+                block.add_extrinsic(acc_dave).unwrap();
+                block.add_extrinsic(transaction).unwrap();
+
+                assert!(stf.execute_block(block).is_ok());
+
+                // Check updated balances
+                let updated_from: Account<MockConfig> = stf
+                    .get_account(<tests::MockConfig as Config>::Hash::from([0; 32]))
+                    .unwrap();
+                let updated_to: Account<MockConfig> = stf
+                    .get_account(<tests::MockConfig as Config>::Hash::from([1; 32]))
+                    .unwrap();
+
+                assert_eq!(
+                    updated_from.balance,
+                    <tests::MockConfig as Config>::Funds::from(70u128)
+                );
+                assert_eq!(
+                    updated_to.balance,
+                    <tests::MockConfig as Config>::Funds::from(80u128)
+                );
+            }
+        }
+
+        mod failure {
+            use crate::{
+                block::Header,
+                extrinsics::{self, SignedTransaction},
+                types,
+            };
+
+            use super::*;
+
+            #[test]
+            fn test_execute_block_with_insufficient_balance() {
+                let plugin = Plugin::new();
+                let mut stf = SimpleStf::<MockConfig>::new(plugin);
+
+                // Create account with insufficient balance
+                let from_account: Account<MockConfig> = Account {
+                    account_id: [0; 32],
+                    balance: 100,
+                };
+                let to_account: Account<MockConfig> = Account {
+                    account_id: [1; 32],
+                    balance: 50,
+                };
+                stf.plugin
+                    .set(StoragePrefix::Account, [0; 32], &from_account)
+                    .unwrap();
+                stf.plugin
+                    .set(StoragePrefix::Account, [1; 32], &to_account)
+                    .unwrap();
+
+                // Create a block with a transfer transaction
+                let transaction: SignedTransaction<MockConfig> =
+                    extrinsics::SignedTransaction::new(types::TransactionType::Transfer {
+                        from: [0; 32],
+                        to: [1; 32],
+                        amount: 30,
+                    });
+                let mut block = Block {
+                    header: Header {
+                        block_height: Height::from(1),
+                        parent_hash: [0; 32],
+                        state_root: [0; 32],
+                        extrinsics_root: [0; 32],
+                        block_weight: 0,
+                    },
+                    extrinsics: Vec::new(),
+                };
+
+                block.add_extrinsic(transaction).unwrap();
+
+                // The execution should succeed, but the transfer should be skipped
+                assert!(stf.execute_block(block).is_ok());
+
+                // Check that balances remain unchanged
+                let updated_from: Account<MockConfig> =
+                    stf.plugin.get(StoragePrefix::Account, [0; 32]).unwrap();
+                let updated_to: Account<MockConfig> =
+                    stf.plugin.get(StoragePrefix::Account, [1; 32]).unwrap();
+                assert_eq!(updated_from.balance, 20);
+                assert_eq!(updated_to.balance, 50);
+            }
+        }
+    }
+
+    mod validate_account {
+        use super::*;
+
+        mod success {
+            use super::*;
+
+            #[test]
+            fn test_validate_new_account() {
+                let plugin = Plugin::new();
+                let mut stf = SimpleStf::<MockConfig>::new(plugin);
+
+                let new_account = Account {
+                    account_id: [0; 32],
+                    balance: 100,
+                };
+
+                stf.plugin
+                    .set(
+                        StoragePrefix::Account,
+                        &new_account.account_id,
+                        &new_account.balance,
+                    )
+                    .map_err(StfError::Storage)
+                    .unwrap();
+
+                assert!(stf.validate_account(new_account).is_ok());
+            }
+        }
+
+        mod failure {
+            use super::*;
+
+            #[test]
+            fn test_validate_existing_account() {
+                let plugin = Plugin::new();
+                let mut stf = SimpleStf::<MockConfig>::new(plugin);
+
+                let new_account = Account {
+                    account_id: [0; 32],
+                    balance: 100,
+                };
+
+                assert!(stf.validate_account(new_account).is_err());
+            }
+        }
+    }
+
+    mod get_block_hash {
+        use super::*;
+
+        mod success {
+            use crate::block::Header;
+
+            use super::*;
+
+            #[test]
+            fn test_get_existing_block_hash() {
+                let plugin = Plugin::new();
+                let mut stf = SimpleStf::<MockConfig>::new(plugin);
+
+                let block: Block<MockConfig> = Block {
+                    header: Header {
+                        block_height: Height::from(1),
+                        parent_hash: [0; 32],
+                        state_root: [0; 32],
+                        extrinsics_root: [0; 32],
+                        block_weight: 0,
+                    },
+                    extrinsics: Vec::new(),
+                };
+
+                stf.plugin
+                    .set(StoragePrefix::Block, &1u64, &block.hash())
+                    .unwrap();
+
+                assert_eq!(stf.get_block_hash(Height::from(1)).unwrap(), block.hash());
+            }
+        }
+
+        mod failure {
+            use super::*;
+
+            #[test]
+            fn test_get_nonexistent_block_hash() {
+                let plugin = Plugin::new();
+                let stf = SimpleStf::<MockConfig>::new(plugin);
+
+                assert!(stf.get_block_hash(Height::from(1)).is_err());
+            }
+        }
+    }
+
+    mod get_account {
+        use super::*;
+
+        mod success {
+            use super::*;
+
+            #[test]
+            fn test_get_existing_account() {
+                let plugin = Plugin::new();
+                let mut stf = SimpleStf::<MockConfig>::new(plugin);
+
+                let account: Account<MockConfig> = Account {
+                    account_id: [0; 32],
+                    balance: 100,
+                };
+                stf.plugin
+                    .set(StoragePrefix::Account, [0; 32], &account)
+                    .unwrap();
+
+                let retrieved_account = stf
+                    .get_account(stf.plugin.get(StoragePrefix::Account, [0; 32]).unwrap())
+                    .unwrap();
+                assert_eq!(retrieved_account.account_id, [0; 32]);
+                assert_eq!(retrieved_account.balance, 100);
+            }
+        }
+
+        mod failure {
+            use super::*;
+
+            #[test]
+            fn test_get_nonexistent_account() {
+                let plugin = Plugin::new();
+                let stf = SimpleStf::<MockConfig>::new(plugin);
+
+                assert!(stf
+                    .get_account(<tests::MockConfig as Config>::Hash::default())
+                    .is_err());
+            }
+        }
     }
 }

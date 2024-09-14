@@ -179,3 +179,112 @@ pub enum ConsensusError {
     #[error("Stf error: {0}")]
     Stf(#[from] StfError),
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Define a mock configuration struct
+    #[derive(Debug, PartialEq)]
+    struct MockConfig;
+
+    // Implement the Config trait for MockConfig
+    impl Config for MockConfig {
+        type MaxBlockWeight = MaxBlockWeight;
+        type MaxBlockHeight = MaxBlockHeight;
+        type WeightType = u64;
+        type HeightType = Height;
+        type Hash = [u8; 32];
+        type Funds = u128;
+    }
+
+    mod test_height {
+        mod success {
+            use crate::{types::Height, One, Zero};
+
+            #[test]
+            fn test_height_from_u64() {
+                let height = Height::from(10u64);
+                assert_eq!(height.0, 10);
+            }
+
+            #[test]
+            fn test_height_into_vec_u8() {
+                let height = Height(0x1234_5678_9ABC_DEF0);
+                let bytes: Vec<u8> = height.into();
+                assert_eq!(bytes, vec![0xF0, 0xDE, 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12]);
+            }
+
+            #[test]
+            fn test_height_subtraction() {
+                let h1 = Height(100);
+                let h2 = Height(30);
+                assert_eq!(h1 - h2, Height(70));
+            }
+
+            #[test]
+            fn test_height_display() {
+                let height = Height(12345);
+                assert_eq!(format!("{}", height), "12345");
+            }
+
+            #[test]
+            fn test_height_zero_and_one() {
+                assert_eq!(Height::zero(), Height(0));
+                assert_eq!(Height::one(), Height(1));
+            }
+
+            #[test]
+            fn test_height_add_assign() {
+                let mut height = Height(10);
+                height += Height(5);
+                assert_eq!(height, Height(15));
+            }
+        }
+    }
+
+    mod test_transaction_type {
+        mod success {
+            use crate::types::{tests::MockConfig, TransactionType};
+
+            #[test]
+            fn test_transaction_type_weight() {
+                let transfer = TransactionType::<MockConfig>::Transfer {
+                    from: [0; 32],
+                    to: [1; 32],
+                    amount: 100,
+                };
+                assert_eq!(transfer.weight(), 10);
+
+                let mint = TransactionType::<MockConfig>::Mint {
+                    to: [2; 32],
+                    amount: 50,
+                };
+                assert_eq!(mint.weight(), 15);
+
+                let burn = TransactionType::<MockConfig>::Burn {
+                    from: [3; 32],
+                    amount: 25,
+                };
+                assert_eq!(burn.weight(), 20);
+
+                let account_creation = TransactionType::<MockConfig>::AccountCreation {
+                    account_id: [4; 32],
+                    balance: 1000,
+                };
+                assert_eq!(account_creation.weight(), 7);
+            }
+
+            #[test]
+            fn test_transaction_type_clone() {
+                let transfer = TransactionType::<MockConfig>::Transfer {
+                    from: [0; 32],
+                    to: [1; 32],
+                    amount: 100,
+                };
+                let cloned_transfer = transfer.clone();
+                assert_eq!(transfer, cloned_transfer);
+            }
+        }
+    }
+}

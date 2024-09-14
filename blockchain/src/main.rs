@@ -51,7 +51,8 @@ pub trait Config {
         + AsRef<[u8]>
         + Copy
         + PartialEq
-        + From<[u8; 32]>;
+        + From<[u8; 32]>
+        + Default;
     type Funds: Copy
         + Debug
         + Serialize

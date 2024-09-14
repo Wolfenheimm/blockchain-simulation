@@ -43,7 +43,6 @@ impl State {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     mod new_state {
         mod success {
@@ -69,6 +68,24 @@ mod tests {
 
                 assert!(state.insert(key.clone(), value.clone()).is_ok());
                 assert_eq!(state.get(key), Some(&value));
+            }
+
+            #[test]
+            fn test_insert_empty_key() {
+                let mut state = State::new();
+                let key = vec![];
+                let value = vec![1, 2, 3];
+
+                assert!(state.insert(key, value).is_ok());
+            }
+
+            #[test]
+            fn test_insert_empty_value() {
+                let mut state = State::new();
+                let key = vec![1, 2, 3];
+                let value = vec![];
+
+                assert!(state.insert(key, value).is_ok());
             }
         }
     }
@@ -103,6 +120,18 @@ mod tests {
                 assert_eq!(state.get(key), None);
             }
         }
+
+        mod failure {
+            use crate::state::State;
+
+            #[test]
+            fn test_get_empty_key() {
+                let state = State::new();
+                let key = vec![];
+
+                assert!(state.get(key).is_none());
+            }
+        }
     }
 
     mod multi_insert {
@@ -125,6 +154,46 @@ mod tests {
                 for (key, value) in pairs.iter() {
                     assert_eq!(state.get(key.clone()), Some(value));
                 }
+            }
+        }
+
+        mod failure {
+            use crate::state::State;
+
+            #[test]
+            fn test_multiple_inserts_with_duplicate_keys() {
+                let mut state = State::new();
+                let pairs = vec![
+                    (vec![1], vec![10]),
+                    (vec![1], vec![20]), // Duplicate key
+                    (vec![3], vec![30]),
+                ];
+
+                for (key, value) in pairs.iter() {
+                    state.insert(key.clone(), value.clone()).ok();
+                }
+
+                // The last insert with the duplicate key should overwrite the previous value
+                assert_eq!(state.get(vec![1]), Some(&vec![20]));
+                assert_eq!(state.get(vec![3]), Some(&vec![30]));
+            }
+
+            #[test]
+            fn test_multiple_inserts_with_empty_key() {
+                let mut state = State::new();
+                let pairs = vec![
+                    (vec![1], vec![10]),
+                    (vec![], vec![]), // Empty key
+                    (vec![3], vec![30]),
+                ];
+
+                for (key, value) in pairs.iter() {
+                    assert!(state.insert(key.clone(), value.clone()).is_ok());
+                }
+
+                assert_eq!(state.get(vec![1]), Some(&vec![10]));
+                assert_eq!(state.get(vec![]), Some(&vec![]));
+                assert_eq!(state.get(vec![3]), Some(&vec![30]));
             }
         }
     }
