@@ -170,6 +170,7 @@ where
                         account_id: to_account.clone().unwrap().account_id,
                         balance: to_account.clone().unwrap().balance + amount,
                     };
+
                     // Push
                     self.plugin
                         .set(
@@ -248,6 +249,7 @@ where
         Ok(())
     }
 
+    // Check if the account already exists, this validation is used for the account creation transaction
     fn validate_account(&mut self, account: Account<T>) -> Result<(), Box<dyn Error>> {
         // Check if the account is not already in the state
         let account_exists: Result<Account<T>, StorageError> =
@@ -313,9 +315,7 @@ mod tests {
                     },
                     extrinsics: Vec::new(),
                 };
-                stf.plugin
-                    .set(StoragePrefix::Block, &1u64, &parent_block.hash())
-                    .unwrap();
+                assert!(stf.execute_block(parent_block.clone()).is_ok());
 
                 // Create a new block
                 let new_block = Block {
@@ -334,7 +334,7 @@ mod tests {
         }
 
         mod failure {
-            use crate::block::Header;
+            use crate::{block::Header, Zero};
 
             use super::*;
 
@@ -343,10 +343,9 @@ mod tests {
                 let plugin = Plugin::new();
                 let mut stf = SimpleStf::<MockConfig>::new(plugin);
 
-                // Add a block to the state
                 let block = Block {
                     header: Header {
-                        block_height: Height::from(1),
+                        block_height: Height::zero(),
                         parent_hash: [0; 32],
                         state_root: [0; 32],
                         extrinsics_root: [0; 32],
@@ -354,10 +353,12 @@ mod tests {
                     },
                     extrinsics: Vec::new(),
                 };
-                stf.plugin
-                    .set(StoragePrefix::Block, &1u64, &block.hash())
-                    .unwrap();
 
+                // Place the block into the chain
+                assert!(stf.execute_block(block.clone()).is_ok());
+
+                // Validate it after it was placed, this should result in an error...
+                // Validate is used before placing a block into the chain.
                 assert!(stf.validate_block(block).is_err());
             }
 
@@ -408,6 +409,7 @@ mod tests {
                         to: [1; 32],
                         amount: 30,
                     });
+
                 let acc_alice: SignedTransaction<MockConfig> =
                     extrinsics::SignedTransaction::new(types::TransactionType::AccountCreation {
                         account_id: [0; 32],
@@ -471,28 +473,26 @@ mod tests {
                 let mut stf = SimpleStf::<MockConfig>::new(plugin);
 
                 // Create account with insufficient balance
-                let from_account: Account<MockConfig> = Account {
-                    account_id: [0; 32],
-                    balance: 100,
-                };
-                let to_account: Account<MockConfig> = Account {
-                    account_id: [1; 32],
-                    balance: 50,
-                };
-                stf.plugin
-                    .set(StoragePrefix::Account, [0; 32], &from_account)
-                    .unwrap();
-                stf.plugin
-                    .set(StoragePrefix::Account, [1; 32], &to_account)
-                    .unwrap();
+                let acc_alice: SignedTransaction<MockConfig> =
+                    extrinsics::SignedTransaction::new(types::TransactionType::AccountCreation {
+                        account_id: [0; 32],
+                        balance: 100,
+                    });
+
+                let acc_dave: SignedTransaction<MockConfig> =
+                    extrinsics::SignedTransaction::new(types::TransactionType::AccountCreation {
+                        account_id: [1; 32],
+                        balance: 50,
+                    });
 
                 // Create a block with a transfer transaction
                 let transaction: SignedTransaction<MockConfig> =
                     extrinsics::SignedTransaction::new(types::TransactionType::Transfer {
                         from: [0; 32],
                         to: [1; 32],
-                        amount: 30,
+                        amount: 150,
                     });
+
                 let mut block = Block {
                     header: Header {
                         block_height: Height::from(1),
@@ -504,17 +504,28 @@ mod tests {
                     extrinsics: Vec::new(),
                 };
 
+                block.add_extrinsic(acc_alice).unwrap();
+                block.add_extrinsic(acc_dave).unwrap();
                 block.add_extrinsic(transaction).unwrap();
 
-                // The execution should succeed, but the transfer should be skipped
                 assert!(stf.execute_block(block).is_ok());
 
                 // Check that balances remain unchanged
-                let updated_from: Account<MockConfig> =
-                    stf.plugin.get(StoragePrefix::Account, [0; 32]).unwrap();
-                let updated_to: Account<MockConfig> =
-                    stf.plugin.get(StoragePrefix::Account, [1; 32]).unwrap();
-                assert_eq!(updated_from.balance, 20);
+                let updated_from: Account<MockConfig> = stf
+                    .plugin
+                    .get(
+                        StoragePrefix::Account,
+                        <tests::MockConfig as Config>::Hash::from([0; 32]),
+                    )
+                    .unwrap();
+                let updated_to: Account<MockConfig> = stf
+                    .plugin
+                    .get(
+                        StoragePrefix::Account,
+                        <tests::MockConfig as Config>::Hash::from([1; 32]),
+                    )
+                    .unwrap();
+                assert_eq!(updated_from.balance, 100);
                 assert_eq!(updated_to.balance, 50);
             }
         }
@@ -550,6 +561,12 @@ mod tests {
         }
 
         mod failure {
+            use crate::{
+                block::Header,
+                extrinsics::{self, SignedTransaction},
+                types,
+            };
+
             use super::*;
 
             #[test]
@@ -557,12 +574,34 @@ mod tests {
                 let plugin = Plugin::new();
                 let mut stf = SimpleStf::<MockConfig>::new(plugin);
 
-                let new_account = Account {
+                let acc_alice: SignedTransaction<MockConfig> =
+                    extrinsics::SignedTransaction::new(types::TransactionType::AccountCreation {
+                        account_id: [0; 32],
+                        balance: 100,
+                    });
+
+                let mut block = Block {
+                    header: Header {
+                        block_height: Height::from(1),
+                        parent_hash: [0; 32],
+                        state_root: [0; 32],
+                        extrinsics_root: [0; 32],
+                        block_weight: 0,
+                    },
+                    extrinsics: Vec::new(),
+                };
+
+                block.add_extrinsic(acc_alice).unwrap();
+
+                assert!(stf.execute_block(block).is_ok());
+
+                let same_alice_account = Account {
                     account_id: [0; 32],
                     balance: 100,
                 };
 
-                assert!(stf.validate_account(new_account).is_err());
+                // This fails because the account already exists...
+                assert!(stf.validate_account(same_alice_account).is_err());
             }
         }
     }
@@ -616,6 +655,12 @@ mod tests {
         use super::*;
 
         mod success {
+            use crate::{
+                block::Header,
+                extrinsics::{self, SignedTransaction},
+                types,
+            };
+
             use super::*;
 
             #[test]
@@ -623,16 +668,29 @@ mod tests {
                 let plugin = Plugin::new();
                 let mut stf = SimpleStf::<MockConfig>::new(plugin);
 
-                let account: Account<MockConfig> = Account {
-                    account_id: [0; 32],
-                    balance: 100,
+                let acc_alice: SignedTransaction<MockConfig> =
+                    extrinsics::SignedTransaction::new(types::TransactionType::AccountCreation {
+                        account_id: [0; 32],
+                        balance: 100,
+                    });
+
+                let mut block = Block {
+                    header: Header {
+                        block_height: Height::from(1),
+                        parent_hash: [0; 32],
+                        state_root: [0; 32],
+                        extrinsics_root: [0; 32],
+                        block_weight: 0,
+                    },
+                    extrinsics: Vec::new(),
                 };
-                stf.plugin
-                    .set(StoragePrefix::Account, [0; 32], &account)
-                    .unwrap();
+
+                block.add_extrinsic(acc_alice).unwrap();
+
+                assert!(stf.execute_block(block).is_ok());
 
                 let retrieved_account = stf
-                    .get_account(stf.plugin.get(StoragePrefix::Account, [0; 32]).unwrap())
+                    .get_account(<tests::MockConfig as Config>::Hash::from([0; 32]))
                     .unwrap();
                 assert_eq!(retrieved_account.account_id, [0; 32]);
                 assert_eq!(retrieved_account.balance, 100);

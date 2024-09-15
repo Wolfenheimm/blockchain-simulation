@@ -1,5 +1,5 @@
 use crate::stf::Stf;
-use crate::types::ConsensusError;
+use crate::types::{ConsensusError, StfError};
 use crate::{extrinsics, stf, types};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -73,9 +73,10 @@ where
             stf.execute_block(block.clone())
                 .map_err(ConsensusError::Stf)?;
         } else {
+            // ????????????????????
             block.header.parent_hash = stf
                 .get_block_hash(block.header.block_height.clone() - T::HeightType::from(1))
-                .unwrap();
+                .map_err(|e| ConsensusError::Stf(StfError::Storage(e)))?;
             match stf.validate_block(block.clone()) {
                 Ok(_) => {
                     // Execute the block
@@ -110,7 +111,7 @@ impl<T: Config> Nodes<T> for Arc<Mutex<Node<T>>>
 where
     T: Serialize + DeserializeOwned + Debug,
 {
-    fn request_block(&self, block_number: T::MaxBlockHeight) -> Block<T> {
+    fn request_block(&self, _block_number: T::MaxBlockHeight) -> Block<T> {
         todo!()
     }
 }
@@ -247,14 +248,14 @@ mod tests {
         mod failure {
             use crate::{
                 block::{self, Header},
-                Zero,
+                One, Zero,
             };
 
             use super::*;
 
             #[test]
-            fn test_import_block_with_invalid_parent() {
-                let block_height = Height::zero();
+            fn test_import_block_with_invalid_height() {
+                let mut block_height = Height::zero();
 
                 let node = Arc::new(Mutex::new(Node {
                     transaction_pool: vec![].into(),
@@ -266,7 +267,26 @@ mod tests {
                 });
                 let mut stf = SimpleStf::new(crate::plugin::Plugin::new());
 
-                // Try to import a block with an invalid parent hash
+                // We need a prior block before knowing if the parent hash is invalid...
+                let mut genesis_block: Block<MockConfig> = block::Block {
+                    header: Header {
+                        block_height,
+                        parent_hash: [0; 32],
+                        state_root: [0; 32],
+                        extrinsics_root: [0; 32],
+                        block_weight: 0,
+                    },
+                    extrinsics: Vec::new(),
+                };
+
+                consensus
+                    .import_block(&mut genesis_block, &mut stf)
+                    .unwrap();
+
+                block_height += Height::one();
+                block_height += Height::one();
+
+                // Try to import a block with an invalid height
                 let mut invalid_block = block::Block {
                     header: Header {
                         block_height,
