@@ -1,79 +1,23 @@
-pub mod account;
-pub mod block;
-pub mod consensus;
-pub mod extrinsics;
-pub mod plugin;
-pub mod state;
-pub mod stf;
-pub mod types;
-use crate::block::BlockTrait;
-use block::Header;
-use consensus::{Consensus, ConsensusT, Node, RpcNode};
+use common::block;
+use common::block::BlockTrait;
+use common::block::Header;
+use common::extrinsics;
+use common::types;
+use common::types::Config;
+use common::types::One;
+use common::types::Zero;
+use node::{Consensus, ConsensusT, Node, RpcNode};
 use rand::Rng;
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::fmt::{Debug, Display};
-use std::ops::{Add, AddAssign, Sub};
+use runtime::plugin;
+use runtime::stf;
+use std::fmt::Debug;
 use std::{
     sync::{Arc, Mutex},
     thread,
     time::Duration,
 };
 use types::{Height, MaxBlockHeight, MaxBlockWeight};
-
-pub trait Config {
-    type MaxBlockWeight: Get<Self::WeightType>;
-    type MaxBlockHeight: Get<Self::HeightType>;
-    type WeightType: Clone
-        + Debug
-        + Serialize
-        + DeserializeOwned
-        + Add<Output = Self::WeightType>
-        + From<u64>
-        + AddAssign
-        + PartialOrd
-        + Display;
-    type HeightType: Clone
-        + Serialize
-        + DeserializeOwned
-        + Debug
-        + Display
-        + PartialEq
-        + From<u64>
-        + Sub<Output = Self::HeightType>
-        + Into<Vec<u8>>
-        + Zero
-        + One
-        + AddAssign;
-    type Hash: Serialize
-        + DeserializeOwned
-        + Debug
-        + AsRef<[u8]>
-        + Copy
-        + PartialEq
-        + From<[u8; 32]>
-        + Default;
-    type Funds: Copy
-        + Debug
-        + Serialize
-        + DeserializeOwned
-        + From<u128>
-        + PartialOrd
-        + Add<Output = Self::Funds>
-        + Sub<Output = Self::Funds>;
-}
-
-pub trait Zero {
-    fn zero() -> Self;
-}
-
-pub trait One {
-    fn one() -> Self;
-}
-
-pub trait Get<T> {
-    fn get() -> T;
-}
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 struct MainNetConfig;
@@ -150,22 +94,17 @@ fn main() {
                 extrinsics: Vec::new(),
             };
 
+            // The genesis block shouldn't contain transactions other than the ones
+            // currently hard-coded @ startup
             if block_height != Height::zero() {
                 let mut node = node.lock().unwrap();
 
                 // Keep pulling from the transaction pool until the block weight limit is reached
-                //let x = node.transaction_pool.get(node.transaction_pool.len());
-                //let y = node.transaction_pool.split_off(at);
                 while let Some(transaction) = node.transaction_pool.pop_back() {
                     // Check if the extrinsic can be added
-                    match block.add_extrinsic(transaction.clone()) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            // Block weight limit exceeded, break the loop and rollback...
-                            println!("{}", e);
-                            node.transaction_pool.push_back(transaction);
-                            break;
-                        }
+                    if block.can_add_extrinsic(transaction.weight()) {
+                        block.add_extrinsic(transaction.clone()).unwrap();
+                        break;
                     }
                 }
             }

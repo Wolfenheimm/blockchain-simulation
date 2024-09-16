@@ -1,7 +1,8 @@
+use common::types::StorageError;
 use serde::Serialize;
 use std::collections::HashMap;
-
-use crate::types::StorageError;
+pub mod plugin;
+pub mod stf;
 
 #[derive(Serialize)]
 pub struct State {
@@ -46,7 +47,7 @@ mod tests {
 
     mod new_state {
         mod success {
-            use crate::state::State;
+            use crate::State;
 
             #[test]
             fn test_new_state() {
@@ -56,7 +57,7 @@ mod tests {
         }
 
         mod failure {
-            use crate::state::State;
+            use crate::State;
 
             #[test]
             fn test_new_state() {
@@ -68,7 +69,7 @@ mod tests {
 
     mod insert_get {
         mod success {
-            use crate::state::State;
+            use crate::State;
 
             #[test]
             fn test_insert_and_get() {
@@ -100,7 +101,7 @@ mod tests {
         }
 
         mod failure {
-            use crate::state::State;
+            use crate::State;
 
             #[test]
             fn test_insert_and_get() {
@@ -116,7 +117,7 @@ mod tests {
 
     mod insert_overwrite {
         mod success {
-            use crate::state::State;
+            use crate::State;
 
             #[test]
             fn test_insert_overwrite() {
@@ -132,7 +133,7 @@ mod tests {
         }
 
         mod failure {
-            use crate::state::State;
+            use crate::State;
 
             #[test]
             fn test_insert_overwrite() {
@@ -150,7 +151,7 @@ mod tests {
 
     mod get_nonexistent {
         mod success {
-            use crate::state::State;
+            use crate::State;
 
             #[test]
             fn test_get_nonexistent() {
@@ -162,7 +163,7 @@ mod tests {
         }
 
         mod failure {
-            use crate::state::State;
+            use crate::State;
 
             #[test]
             fn test_get_empty_key() {
@@ -176,7 +177,7 @@ mod tests {
 
     mod multi_insert {
         mod success {
-            use crate::state::State;
+            use crate::State;
 
             #[test]
             fn test_multiple_inserts() {
@@ -198,7 +199,7 @@ mod tests {
         }
 
         mod failure {
-            use crate::state::State;
+            use crate::State;
 
             #[test]
             fn test_multiple_inserts_with_duplicate_keys() {

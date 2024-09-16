@@ -1,7 +1,7 @@
 use blake2::{Blake2s256, Digest};
 use serde::{Deserialize, Serialize};
 
-use crate::{extrinsics::SignedTransaction, Config, Get};
+use crate::{extrinsics::SignedTransaction, types::Config, types::Get};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Block<T: Config> {

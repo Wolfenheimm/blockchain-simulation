@@ -1,6 +1,5 @@
+use crate::types::Config;
 use serde::{Deserialize, Serialize};
-
-use crate::Config;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Account<T: Config> {

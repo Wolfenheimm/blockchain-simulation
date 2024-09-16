@@ -1,15 +1,16 @@
-use crate::stf::Stf;
-use crate::types::{ConsensusError, StfError};
-use crate::{extrinsics, stf, types};
+use common::types::{self, StfError};
+use common::types::{Config, ConsensusError};
+use common::{block, extrinsics};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use runtime::stf::{self, Stf};
 use std::fmt::Debug;
 use std::{
     collections::VecDeque,
     sync::{Arc, Mutex},
 };
 
-use crate::{block::Block, extrinsics::SignedTransaction, Config};
+use crate::{block::Block, extrinsics::SignedTransaction};
 
 /// A simulated network of nodes that can send blocks to other nodes.
 pub trait Nodes<T: Config>
@@ -56,8 +57,8 @@ where
         block: &mut Block<T>,
         stf: &mut stf::SimpleStf<T>,
     ) -> Result<(), ConsensusError> {
+        // Here we inject test accounts into the genesis block
         if block.header.block_height == T::HeightType::from(0) {
-            // Genesis block
             block.extrinsics.push(extrinsics::SignedTransaction::new(
                 types::TransactionType::AccountCreation {
                     account_id: T::Hash::from([0; 32]), // ALICE
@@ -73,7 +74,7 @@ where
             stf.execute_block(block.clone())
                 .map_err(ConsensusError::Stf)?;
         } else {
-            // ????????????????????
+            // Set the parent hash of the imported block
             block.header.parent_hash = stf
                 .get_block_hash(block.header.block_height.clone() - T::HeightType::from(1))
                 .map_err(|e| ConsensusError::Stf(StfError::Storage(e)))?;
@@ -88,6 +89,8 @@ where
                 }
             }
 
+            // Debug
+            println!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
             println!(
                 "Account ALICE: {:?}",
                 stf.get_account(T::Hash::from([0; 32]))
@@ -96,6 +99,7 @@ where
                 "Account DAVE: {:?}",
                 stf.get_account(T::Hash::from([1; 32]))
             );
+            println!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         }
 
         Ok(())
@@ -162,7 +166,7 @@ mod tests {
         mod success {
             use crate::{
                 block::{self, BlockTrait, Header},
-                One, Zero,
+                types::{One, Zero},
             };
 
             use super::*;
@@ -180,7 +184,7 @@ mod tests {
                     phantom: std::marker::PhantomData::<MockConfig>,
                 });
 
-                let mut stf = SimpleStf::new(crate::plugin::Plugin::new());
+                let mut stf = SimpleStf::new(state::plugin::Plugin::new());
                 let mut genesis_block = block::Block {
                     header: Header {
                         block_height,
@@ -212,7 +216,7 @@ mod tests {
                     node_network: Arc::clone(&node), // Here, the node itself serves as the node network
                     phantom: std::marker::PhantomData::<MockConfig>,
                 });
-                let mut stf = SimpleStf::new(crate::plugin::Plugin::new());
+                let mut stf = SimpleStf::new(state::plugin::Plugin::new());
 
                 // Import genesis block first
                 let mut genesis_block = block::Block {
@@ -248,7 +252,7 @@ mod tests {
         mod failure {
             use crate::{
                 block::{self, Header},
-                One, Zero,
+                types::{One, Zero},
             };
 
             use super::*;
@@ -265,7 +269,7 @@ mod tests {
                     node_network: Arc::clone(&node), // Here, the node itself serves as the node network
                     phantom: std::marker::PhantomData::<MockConfig>,
                 });
-                let mut stf = SimpleStf::new(crate::plugin::Plugin::new());
+                let mut stf = SimpleStf::new(state::plugin::Plugin::new());
 
                 // We need a prior block before knowing if the parent hash is invalid...
                 let mut genesis_block: Block<MockConfig> = block::Block {

@@ -1,5 +1,5 @@
-use crate::state::State;
-use crate::types::StorageError;
+use crate::State;
+use common::types::StorageError;
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
 
@@ -103,8 +103,8 @@ mod tests {
             #[test]
             fn test_set_and_get() {
                 let mut plugin = Plugin::new();
-                let prefix = "test_prefix";
-                let key = "test_key";
+                let prefix = "prefix";
+                let key = "key";
                 let value = 42u32;
 
                 // Set the value
@@ -124,8 +124,8 @@ mod tests {
             #[test]
             fn test_get_nonexistent_key() {
                 let plugin = Plugin::new();
-                let prefix = "test_prefix";
-                let key = "nonexistent_key";
+                let prefix = "prefix";
+                let key = "dne_key";
 
                 let get_result: Result<u32, StorageError> = plugin.get(prefix, key);
                 assert!(matches!(get_result, Err(StorageError::KeyNotFound(_))));

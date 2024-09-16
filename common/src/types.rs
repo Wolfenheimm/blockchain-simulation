@@ -1,12 +1,54 @@
-use crate::Get;
-use crate::{Config, One, Zero};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use std::ops::Add;
 use std::{
     // Add this line to import the Display trait
     fmt::{Debug, Display},
     ops::{AddAssign, Sub},
 };
 use thiserror::Error;
+
+pub trait Config {
+    type MaxBlockWeight: Get<Self::WeightType>;
+    type MaxBlockHeight: Get<Self::HeightType>;
+    type WeightType: Clone
+        + Debug
+        + Serialize
+        + DeserializeOwned
+        + Add<Output = Self::WeightType>
+        + From<u64>
+        + AddAssign
+        + PartialOrd
+        + Display;
+    type HeightType: Clone
+        + Serialize
+        + DeserializeOwned
+        + Debug
+        + Display
+        + PartialEq
+        + From<u64>
+        + Sub<Output = Self::HeightType>
+        + Into<Vec<u8>>
+        + Zero
+        + One
+        + AddAssign;
+    type Hash: Serialize
+        + DeserializeOwned
+        + Debug
+        + AsRef<[u8]>
+        + Copy
+        + PartialEq
+        + From<[u8; 32]>
+        + Default;
+    type Funds: Copy
+        + Debug
+        + Serialize
+        + DeserializeOwned
+        + From<u128>
+        + PartialOrd
+        + Add<Output = Self::Funds>
+        + Sub<Output = Self::Funds>;
+}
 
 pub struct MaxBlockHeight;
 pub struct FundSum;
@@ -69,6 +111,18 @@ impl AddAssign for Height {
     fn add_assign(&mut self, rhs: Self) {
         self.0 += rhs.0;
     }
+}
+
+pub trait Zero {
+    fn zero() -> Self;
+}
+
+pub trait One {
+    fn one() -> Self;
+}
+
+pub trait Get<T> {
+    fn get() -> T;
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -180,6 +234,13 @@ pub enum ConsensusError {
     Stf(#[from] StfError),
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub enum StoragePrefix {
+    Account,
+    Block,
+    Extrinsic,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -200,7 +261,7 @@ mod tests {
 
     mod test_height {
         mod success {
-            use crate::{types::Height, One, Zero};
+            use crate::{types::Height, types::One, types::Zero};
 
             #[test]
             fn test_height_from_u64() {

@@ -1,4 +1,4 @@
-use crate::{types::TransactionType, Config};
+use crate::types::{Config, TransactionType};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]

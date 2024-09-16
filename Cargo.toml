@@ -1,19 +1,17 @@
-[package]
-name = "blockchain-simulation"
-version = "0.1.0"
+[workspace.package]
+authors = ["Wolfenheimm"]
 edition = "2021"
-
-# Specify binary target
-[[bin]]
-name = "blockchain"
-path = "blockchain/src/main.rs"
 
 [workspace]
 members = [
-    "blockchain",
+    "common",
+    "main",
+    "node",
+    "runtime",
 ]
+resolver = "2"
 
-[dependencies]
+[workspace.dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_derive = "1.0"
 bincode = "1.3"

@@ -1,21 +1,14 @@
-use crate::account::Account;
-use crate::block::{Block, BlockTrait};
-use crate::plugin::{Plugin, StoragePlugin};
-use crate::types::{StfError, StorageError, TransactionType};
-use crate::Config;
+use common::account::Account;
+use common::block::{Block, BlockTrait};
+use common::types::{Config, StoragePrefix};
+use common::types::{StfError, StorageError, TransactionType};
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::error::Error;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-// TODO: Add this to types, rename to StorageType
-#[derive(Serialize, Deserialize, Debug)]
-pub enum StoragePrefix {
-    Account,
-    Block,
-    Extrinsic,
-}
+use crate::plugin::{Plugin, StoragePlugin};
 
 pub trait Stf<T: Config>
 where
@@ -77,15 +70,17 @@ where
         if block.header.parent_hash != parent_block_key.unwrap() {
             return Err("Parent hash is invalid for this block.".into());
         }
-        // ^^^ This is a potential fork scenario
-        // TODO: This could potentially be a trigger event which would check consensus and fetch the accepted chain
+
+        // TODO: Think of what could potentially be a trigger event which would check consensus and fetch the accepted chain
+        // - Parent hash is currently set in the consensus layer, perhaps this should be from main...
+        // - Block height comes from main...
 
         Ok(())
     }
 
     fn execute_block(&mut self, block: Block<T>) -> Result<(), StfError> {
         // Add the block to the state. B# -> BH & BH -> B
-        println!("BLOCK HEIGHT: {}", &block.header.block_height);
+        println!("\nBLOCK HEIGHT: {}", &block.header.block_height);
         let block_hash = block.hash();
         self.plugin
             .set(
@@ -144,7 +139,6 @@ where
                         account_id: to_account.clone().unwrap().account_id,
                         balance: to_account.clone().unwrap().balance + amount,
                     };
-
                     // Push
                     self.plugin
                         .set(
@@ -170,7 +164,6 @@ where
                         account_id: to_account.clone().unwrap().account_id,
                         balance: to_account.clone().unwrap().balance + amount,
                     };
-
                     // Push
                     self.plugin
                         .set(
@@ -274,13 +267,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::account::Account;
-    use crate::block::Block;
     use crate::plugin::Plugin;
-    use crate::types::{Height, MaxBlockHeight, MaxBlockWeight, StfError};
+    use common::account::Account;
+    use common::block::Block;
+    use common::types::{Height, MaxBlockHeight, MaxBlockWeight, StfError};
 
     // Mock implementation of Config trait for testing
-    #[derive(Serialize, Deserialize, Debug)]
+    #[derive(Serialize, Deserialize Debug)]
     struct MockConfig;
     impl Config for MockConfig {
         type MaxBlockWeight = MaxBlockWeight;
@@ -295,7 +288,7 @@ mod tests {
         use super::*;
 
         mod success {
-            use crate::block::Header;
+            use common::block::Header;
 
             use super::*;
 
@@ -334,7 +327,8 @@ mod tests {
         }
 
         mod failure {
-            use crate::{block::Header, Zero};
+            use common::block::Header;
+            use common::types::Zero;
 
             use super::*;
 
@@ -354,11 +348,11 @@ mod tests {
                     extrinsics: Vec::new(),
                 };
 
-                // Place the block into the chain
+                // Place a block into the chain
                 assert!(stf.execute_block(block.clone()).is_ok());
 
-                // Validate it after it was placed, this should result in an error...
-                // Validate is used before placing a block into the chain.
+                // Now validate the same block
+                // Validate runs before a block is executed, therefore this should fail
                 assert!(stf.validate_block(block).is_err());
             }
 
