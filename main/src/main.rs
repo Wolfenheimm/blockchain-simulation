@@ -75,7 +75,7 @@ fn main() {
                     _default => node.submit_extrinsic(extrinsics::SignedTransaction::new(
                         types::TransactionType::Burn {
                             from: [0; 32],
-                            amount: 100,
+                            amount: 0,
                         },
                     )),
                 }
@@ -100,10 +100,11 @@ fn main() {
                 let mut node = node.lock().unwrap();
 
                 // Keep pulling from the transaction pool until the block weight limit is reached
-                while let Some(transaction) = node.transaction_pool.pop_back() {
+                while let Some(transaction) = node.transaction_pool.back() {
                     // Check if the extrinsic can be added
                     if block.can_add_extrinsic(transaction.weight()) {
                         block.add_extrinsic(transaction.clone()).unwrap();
+                        node.transaction_pool.pop_back();
                     } else {
                         break;
                     }
@@ -179,8 +180,10 @@ mod tests {
 
                         // Process transactions
                         while let Some(transaction) = node.transaction_pool.pop_back() {
-                            if block.add_extrinsic(transaction.clone()).is_err() {
-                                node.transaction_pool.push_back(transaction);
+                            // Check if the extrinsic can be added
+                            if block.can_add_extrinsic(transaction.weight()) {
+                                block.add_extrinsic(transaction.clone()).unwrap();
+                            } else {
                                 break;
                             }
                         }
