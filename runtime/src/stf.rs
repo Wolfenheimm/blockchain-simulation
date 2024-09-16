@@ -271,9 +271,10 @@ mod tests {
     use common::account::Account;
     use common::block::Block;
     use common::types::{Height, MaxBlockHeight, MaxBlockWeight, StfError};
+    use serde::Deserialize;
 
     // Mock implementation of Config trait for testing
-    #[derive(Serialize, Deserialize Debug)]
+    #[derive(Serialize, Deserialize, Debug)]
     struct MockConfig;
     impl Config for MockConfig {
         type MaxBlockWeight = MaxBlockWeight;
@@ -382,12 +383,9 @@ mod tests {
         use super::*;
 
         mod success {
-
-            use crate::{
-                block::Header,
-                extrinsics::{self, SignedTransaction},
-                types,
-            };
+            use common::block::Header;
+            use common::extrinsics::{self, SignedTransaction};
+            use common::types;
 
             use super::*;
 
@@ -453,11 +451,9 @@ mod tests {
         }
 
         mod failure {
-            use crate::{
-                block::Header,
-                extrinsics::{self, SignedTransaction},
-                types,
-            };
+            use common::block::Header;
+            use common::extrinsics::{self, SignedTransaction};
+            use common::types;
 
             use super::*;
 
@@ -555,11 +551,9 @@ mod tests {
         }
 
         mod failure {
-            use crate::{
-                block::Header,
-                extrinsics::{self, SignedTransaction},
-                types,
-            };
+            use common::block::Header;
+            use common::extrinsics::{self, SignedTransaction};
+            use common::types;
 
             use super::*;
 
@@ -604,7 +598,7 @@ mod tests {
         use super::*;
 
         mod success {
-            use crate::block::Header;
+            use common::block::Header;
 
             use super::*;
 
@@ -649,11 +643,9 @@ mod tests {
         use super::*;
 
         mod success {
-            use crate::{
-                block::Header,
-                extrinsics::{self, SignedTransaction},
-                types,
-            };
+            use common::block::Header;
+            use common::extrinsics::{self, SignedTransaction};
+            use common::types;
 
             use super::*;
 

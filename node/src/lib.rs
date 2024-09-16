@@ -1,9 +1,9 @@
 use common::types::{self, StfError};
 use common::types::{Config, ConsensusError};
 use common::{block, extrinsics};
+use runtime::stf::{self, Stf};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use runtime::stf::{self, Stf};
 use std::fmt::Debug;
 use std::{
     collections::VecDeque,
@@ -184,7 +184,7 @@ mod tests {
                     phantom: std::marker::PhantomData::<MockConfig>,
                 });
 
-                let mut stf = SimpleStf::new(state::plugin::Plugin::new());
+                let mut stf = SimpleStf::new(runtime::plugin::Plugin::new());
                 let mut genesis_block = block::Block {
                     header: Header {
                         block_height,
@@ -216,7 +216,7 @@ mod tests {
                     node_network: Arc::clone(&node), // Here, the node itself serves as the node network
                     phantom: std::marker::PhantomData::<MockConfig>,
                 });
-                let mut stf = SimpleStf::new(state::plugin::Plugin::new());
+                let mut stf = SimpleStf::new(runtime::plugin::Plugin::new());
 
                 // Import genesis block first
                 let mut genesis_block = block::Block {
@@ -269,7 +269,7 @@ mod tests {
                     node_network: Arc::clone(&node), // Here, the node itself serves as the node network
                     phantom: std::marker::PhantomData::<MockConfig>,
                 });
-                let mut stf = SimpleStf::new(state::plugin::Plugin::new());
+                let mut stf = SimpleStf::new(runtime::plugin::Plugin::new());
 
                 // We need a prior block before knowing if the parent hash is invalid...
                 let mut genesis_block: Block<MockConfig> = block::Block {
