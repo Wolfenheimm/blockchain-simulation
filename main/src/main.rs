@@ -8,9 +8,9 @@ use common::types::One;
 use common::types::Zero;
 use node::{Consensus, ConsensusT, Node, RpcNode};
 use rand::Rng;
-use serde::{Deserialize, Serialize};
 use runtime::plugin;
 use runtime::stf;
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::{
     sync::{Arc, Mutex},
@@ -104,6 +104,7 @@ fn main() {
                     // Check if the extrinsic can be added
                     if block.can_add_extrinsic(transaction.weight()) {
                         block.add_extrinsic(transaction.clone()).unwrap();
+                    } else {
                         break;
                     }
                 }
