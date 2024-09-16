@@ -4,6 +4,8 @@
 
 This project is a simplified blockchain simulation implemented in Rust. It aims to demonstrate the core concepts of blockchain technology, including block creation, transaction processing, consensus mechanisms, and state management.
 
+![Blockchain structure diagram](assets/Blockchain-Diagram.png)
+
 ## Features
 
 - Block creation and validation
